@@ -1,23 +1,16 @@
-# Piece Scout
+# Piece Scout V1
 
-First GitHub Pages prototype for Piece Scout.
+GitHub Pages prototype.
 
-## What this build does
+## Upload these four files to the repository root
+- index.html
+- sample_reference.png
+- sample_pieces.png
+- README.md
 
-- Loads a completed-puzzle image and a loose-pieces image.
-- Provides the planned Piece Scout workflow.
-- Includes a sample 80-piece test mode.
-- In sample mode, tapping a piece highlights its location in the completed puzzle and shows possible neighboring pieces.
-- Runs as a static site; no server is required.
+Enable GitHub Pages from **Settings → Pages → Deploy from a branch → main → / (root)**.
 
-## GitHub Pages
+### V1 behavior
+The sample loads automatically. Tap any piece in the scattered-pieces image; the piece is selected and its corresponding location is highlighted in the completed puzzle.
 
-Upload `index.html`, `sample_reference.png`, and `sample_pieces.png` to the repository root.
-
-Then enable:
-
-**Settings → Pages → Deploy from a branch → main → / (root)**
-
-## Important
-
-The sample interaction uses a known test mapping. Arbitrary user photos are intentionally not given fake matches yet. The next milestone is the actual computer-vision engine that detects pieces, identifies their artwork/shape, and matches them to the reference puzzle.
+This version uses the known sample mapping. Real computer-vision puzzle analysis is the next milestone.

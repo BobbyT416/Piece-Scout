@@ -6,230 +6,145 @@
 <meta name="theme-color" content="#182b3a">
 <title>Piece Scout</title>
 <style>
-:root{--bg:#f4f1eb;--card:#fff;--ink:#182b3a;--muted:#697680;--accent:#1769aa;--line:#dedbd5;--good:#24744a}
+:root{--bg:#f4f1eb;--card:#fff;--ink:#182b3a;--muted:#697680;--accent:#1769aa;--line:#dedbd5}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
 header{background:#fff;border-bottom:1px solid var(--line);padding:18px 20px;position:sticky;top:0;z-index:10}
-.brand{font-size:29px;font-weight:800;letter-spacing:-.6px}.tag{color:var(--muted);margin-top:3px}
-main{max-width:1120px;margin:auto;padding:16px}
-.steps{display:flex;gap:8px;overflow:auto;margin-bottom:14px}
+.brand{font-size:29px;font-weight:800}.tag{color:var(--muted);margin-top:3px}
+main{max-width:1120px;margin:auto;padding:16px}.steps{display:flex;gap:8px;overflow:auto;margin-bottom:14px}
 .step{background:#fff;border:1px solid var(--line);border-radius:999px;padding:8px 13px;white-space:nowrap;font-size:14px}
 .step.active{background:var(--ink);color:#fff;border-color:var(--ink)}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.card,.panel{background:var(--card);border-radius:18px;padding:15px;box-shadow:0 2px 12px #00000012}
-h2{font-size:18px;margin:0 0 11px}
-.viewer{position:relative;overflow:hidden;border-radius:12px;background:#e9e5dd;min-height:130px}
-.viewer img{width:100%;display:block}
-.overlay{position:absolute;border:4px solid #d33;border-radius:9px;display:none;pointer-events:none}
-.marker{position:absolute;border:3px solid var(--accent);border-radius:9px;display:none;pointer-events:none}
-.hint{font-size:13px;color:var(--muted);margin-top:8px}
-.panel{margin-top:16px}.big{font-size:24px;font-weight:800}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.card,.panel{background:#fff;border-radius:18px;padding:15px;box-shadow:0 2px 12px #00000012}
+h2{font-size:18px;margin:0 0 11px}.viewer{position:relative;overflow:hidden;border-radius:12px;background:#e9e5dd;touch-action:manipulation}
+.viewer img{width:100%;display:block;user-select:none;-webkit-user-drag:none}
+.overlay,.marker{position:absolute;display:none;pointer-events:none;box-sizing:border-box;border-radius:9px}
+.marker{border:4px solid var(--accent);background:#1769aa18}.overlay{border:4px solid #d33;background:#d3303314}
+.hint{font-size:13px;color:var(--muted);margin-top:8px}.panel{margin-top:16px}.big{font-size:24px;font-weight:800}
 .badge{display:inline-block;background:#e9f5ee;color:#21683f;padding:5px 9px;border-radius:999px;font-weight:700}
 .matches{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.match{background:#edf5fa;padding:9px 12px;border-radius:999px;font-weight:650}
-.uploads{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-label{font-weight:650}.file{margin-top:7px;width:100%}
+.uploads{display:grid;grid-template-columns:1fr 1fr;gap:12px}label{font-weight:650}.file{margin-top:7px;width:100%}
 .actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:12px}
 button{border:0;border-radius:12px;padding:11px 15px;font-size:15px;font-weight:750;background:var(--ink);color:#fff;cursor:pointer}
 button.secondary{background:#e8edf0;color:var(--ink)}
 .status{margin-top:10px;padding:10px 12px;background:#f6f8f9;border-radius:10px;color:#53616a;font-size:14px}
-.progress{height:7px;background:#e4e0d8;border-radius:9px;overflow:hidden;margin-top:10px;display:none}
-.progress>div{height:100%;width:0;background:var(--accent);transition:width .2s}
 .note{margin-top:12px;padding:12px;border-radius:10px;background:#fff7df;color:#6b5420;font-size:13px}
-.hidden{display:none!important}
-canvas{display:none}
-@media(max-width:760px){.grid,.uploads{grid-template-columns:1fr}main{padding:12px}.brand{font-size:26px}}
+.progress{height:7px;background:#e4e0d8;border-radius:9px;overflow:hidden;margin-top:10px;display:none}.progress>div{height:100%;width:0;background:var(--accent)}
+@media(max-width:760px){.grid,.uploads{grid-template-columns:1fr}main{padding:12px}}
 </style>
 </head>
 <body>
-<header>
-  <div class="brand">🧩 Piece Scout</div>
-  <div class="tag">Your AI puzzle assistant</div>
-</header>
-
+<header><div class="brand">🧩 Piece Scout</div><div class="tag">Your AI puzzle assistant</div></header>
 <main>
-  <div class="steps">
-    <div class="step active">1. Reference</div>
-    <div class="step active">2. Pieces</div>
-    <div class="step active">3. Scout</div>
-  </div>
+<div class="steps"><div class="step active">1. Reference</div><div class="step active">2. Pieces</div><div class="step active">3. Scout</div></div>
 
-  <section class="panel">
-    <h2>Load your puzzle</h2>
-    <div class="uploads">
-      <label>Completed puzzle / box image
-        <input class="file" id="refUpload" type="file" accept="image/*">
-      </label>
-      <label>Photo of loose pieces
-        <input class="file" id="piecesUpload" type="file" accept="image/*">
-      </label>
-    </div>
-    <div class="actions">
-      <button id="analyzeBtn">Analyze puzzle</button>
-      <button class="secondary" id="sampleBtn">Load sample test</button>
-      <button class="secondary" id="clearBtn">Clear</button>
-    </div>
-    <div class="progress" id="progress"><div id="bar"></div></div>
-    <div class="status" id="status">Load two pictures, then choose <b>Analyze puzzle</b>.</div>
-  </section>
+<section class="panel">
+<h2>Load your puzzle</h2>
+<div class="uploads">
+<label>Completed puzzle / box image<input class="file" id="refUpload" type="file" accept="image/*"></label>
+<label>Photo of loose pieces<input class="file" id="piecesUpload" type="file" accept="image/*"></label>
+</div>
+<div class="actions">
+<button id="analyzeBtn">Analyze puzzle</button>
+<button class="secondary" id="sampleBtn">Load sample test</button>
+<button class="secondary" id="clearBtn">Clear</button>
+</div>
+<div class="progress" id="progress"><div id="bar"></div></div>
+<div class="status" id="status">The sample is loaded automatically. <b>Tap a piece</b> to try it.</div>
+</section>
 
-  <div class="grid" style="margin-top:16px">
-    <section class="card">
-      <h2>Completed puzzle</h2>
-      <div class="viewer" id="refViewer">
-        <img id="refImg" alt="Completed puzzle reference">
-        <div class="overlay" id="target"></div>
-      </div>
-      <div class="hint">A selected piece's suggested location will be highlighted here.</div>
-    </section>
+<div class="grid" style="margin-top:16px">
+<section class="card"><h2>Completed puzzle</h2><div class="viewer" id="refViewer">
+<img id="refImg" src="sample_reference.png" alt="Completed puzzle reference"><div class="overlay" id="target"></div>
+</div><div class="hint">The red box shows where the selected piece belongs.</div></section>
+<section class="card"><h2>Loose pieces</h2><div class="viewer" id="piecesViewer">
+<img id="piecesImg" src="sample_pieces.png" alt="Loose puzzle pieces"><div class="marker" id="marker"></div>
+</div><div class="hint">Tap any piece. On iPhone, touch any part of a piece.</div></section>
+</div>
 
-    <section class="card">
-      <h2>Loose pieces</h2>
-      <div class="viewer" id="piecesViewer">
-        <img id="piecesImg" alt="Loose puzzle pieces">
-        <div class="marker" id="marker"></div>
-      </div>
-      <div class="hint">After analysis, tap a detected piece to scout it.</div>
-    </section>
-  </div>
-
-  <section class="panel" id="result">
-    <div class="big">Ready</div>
-    <div class="hint">This GitHub build establishes the complete user workflow. The current matcher is intentionally a V1 foundation; the next engineering step is the computer-vision matcher.</div>
-  </section>
-
-  <section class="panel">
-    <h2>V1 notes</h2>
-    <div class="note">
-      This is a static GitHub Pages build: no server is required and photos stay in the browser.
-      The sample mode demonstrates the intended tap-to-scout interaction. Real puzzle-piece
-      recognition/matching is the next development milestone.
-    </div>
-  </section>
+<section class="panel" id="result"><div class="big">Ready to scout</div><div class="hint">Tap one of the 80 sample pieces above.</div></section>
+<section class="panel"><div class="note"><b>V1:</b> The sample has a known mapping so we can test the interface. The real computer-vision matcher comes next.</div></section>
 </main>
 
 <script>
 const $=id=>document.getElementById(id);
-const refImg=$('refImg'),piecesImg=$('piecesImg'),marker=$('marker'),target=$('target');
-let mode='sample', analyzed=false, samplePositions=[];
+const refImg=$('refImg'), piecesImg=$('piecesImg'), marker=$('marker'), target=$('target');
+let analyzed=true, mode='sample';
 
-function fileURL(input,img){
-  const f=input.files?.[0];
-  if(!f)return;
-  img.src=URL.createObjectURL(f);
-  mode='user';
-  analyzed=false;
-  $('status').innerHTML='Photo loaded. Load the other photo, then choose <b>Analyze puzzle</b>.';
-}
-$('refUpload').addEventListener('change',()=>fileURL($('refUpload'),refImg));
-$('piecesUpload').addEventListener('change',()=>fileURL($('piecesUpload'),piecesImg));
+function status(t){$('status').innerHTML=t}
+function progress(on,p){$('progress').style.display=on?'block':'none';$('bar').style.width=(p||0)+'%'}
+function showResult(i){
+  const cols=10,rows=8;
+  const r=Math.floor(i/cols),c=i%cols;
+  // The sample-pieces image is a 10 x 8 layout. Use the cell centers,
+  // not hard-coded pixel positions, so it works at every screen size.
+  const imgW=piecesImg.naturalWidth, imgH=piecesImg.naturalHeight;
+  const cellW=imgW/cols, cellH=(imgH-52)/rows;
+  const topOffset=52;
+  const cx=(c+.5)*cellW, cy=topOffset+(r+.5)*cellH;
 
-function setStatus(t){$('status').innerHTML=t}
-function progress(on,p=0){
-  $('progress').style.display=on?'block':'none';
-  $('bar').style.width=p+'%';
-}
-
-function loadSample(){
-  // Uses the generated test images packaged with this repository.
-  refImg.src='sample_reference.png';
-  piecesImg.src='sample_pieces.png';
-  mode='sample'; analyzed=false;
-  samplePositions=[];
-  setStatus('Sample puzzle loaded. Choose <b>Analyze puzzle</b>.');
-}
-$('sampleBtn').addEventListener('click',loadSample);
-
-$('clearBtn').addEventListener('click',()=>{
-  refImg.removeAttribute('src');piecesImg.removeAttribute('src');
-  marker.style.display='none';target.style.display='none';
-  $('result').innerHTML='<div class="big">Ready</div><div class="hint">Load two pictures to begin.</div>';
-  setStatus('Load two pictures, then choose <b>Analyze puzzle</b>.');
-  analyzed=false;
-});
-
-function buildSampleMap(){
-  // The sample is an 80-piece, 10 x 8 test board. Positions correspond
-  // approximately to the generated sample-pieces image.
-  const W=1500,H=1102, cols=10, rows=8, pw=90, ph=126, margin=25;
-  const cellW=(W-2*margin)/cols, cellH=(H-2*margin)/rows;
-  // Same deterministic jitter used when generating the sample.
-  let seed=42;
-  function rand(){
-    seed=(seed*1664525+1013904223)>>>0;
-    return seed/4294967296;
-  }
-  const a=[];
-  for(let i=0;i<80;i++){
-    const r=Math.floor(i/10),c=i%10;
-    const jx=Math.floor(rand()*15)-7,jy=Math.floor(rand()*15)-7;
-    a.push([Math.floor(margin+c*cellW+(cellW-pw)/2+jx),
-             Math.floor(margin+r*cellH+(cellH-ph)/2+jy)]);
-  }
-  return a;
-}
-
-async function analyze(){
-  if(!refImg.src || !piecesImg.src){
-    setStatus('Please load both the completed-puzzle image and the loose-pieces image first.');
-    return;
-  }
-  progress(true,10);
-  setStatus('Preparing images…');
-  await new Promise(r=>setTimeout(r,250));
-  progress(true,45);
-  await new Promise(r=>setTimeout(r,300));
-
-  if(mode==='sample'){
-    samplePositions=buildSampleMap();
-    analyzed=true;
-    progress(true,100);
-    await new Promise(r=>setTimeout(r,200));
-    progress(false);
-    setStatus('<b>Analysis complete.</b> Tap any sample piece to scout it.');
-    $('result').innerHTML='<div class="big">80 pieces detected</div><div class="hint">Tap a piece in the loose-pieces image. This sample has a known piece-to-location map.</div>';
-  }else{
-    analyzed=true;
-    progress(true,100);
-    await new Promise(r=>setTimeout(r,200));
-    progress(false);
-    setStatus('<b>Photo loaded.</b> V1 is ready for the real CV matcher, but does not pretend to know piece locations yet.');
-    $('result').innerHTML='<div class="big">Images loaded</div><div class="hint">The photo-analysis engine is the next milestone. No false match is being reported for an arbitrary puzzle photo.</div>';
-  }
-}
-$('analyzeBtn').addEventListener('click',analyze);
-
-$('piecesViewer').addEventListener('click',e=>{
-  if(!analyzed || mode!=='sample') return;
-  const rect=piecesImg.getBoundingClientRect();
-  const sx=piecesImg.naturalWidth/rect.width, sy=piecesImg.naturalHeight/rect.height;
-  const px=(e.clientX-rect.left)*sx,py=(e.clientY-rect.top)*sy;
-  let best=-1,bd=1e9;
-  samplePositions.forEach((p,i)=>{
-    const d=Math.hypot(px-(p[0]+45),py-(p[1]+63));
-    if(d<bd){bd=d;best=i}
-  });
-  if(best<0||bd>90)return;
-  const r=Math.floor(best/10),c=best%10;
   marker.style.display='block';
-  marker.style.left=(samplePositions[best][0]/piecesImg.naturalWidth*100)+'%';
-  marker.style.top=(samplePositions[best][1]/piecesImg.naturalHeight*100)+'%';
-  marker.style.width=(90/piecesImg.naturalWidth*100)+'%';
-  marker.style.height=(126/piecesImg.naturalHeight*100)+'%';
-  target.style.display='block';
-  target.style.left=(c*10)+'%';target.style.top=(r*12.5)+'%';
-  target.style.width='10%';target.style.height='12.5%';
+  marker.style.left=(c*10)+'%';
+  marker.style.top=((topOffset+r*cellH)/imgH*100)+'%';
+  marker.style.width='10%';
+  marker.style.height=(cellH/imgH*100)+'%';
 
-  const cand=[best-1,best+1,best-10,best+10]
-    .filter(i=>i>=0&&i<80).slice(0,3)
-    .map(i=>'<span class="match">Piece #'+(i+1)+'</span>').join('');
-  $('result').innerHTML=
-    '<div class="big">Piece #'+(best+1)+'</div>'+
+  target.style.display='block';
+  target.style.left=(c*10)+'%';
+  target.style.top=(r*12.5)+'%';
+  target.style.width='10%';
+  target.style.height='12.5%';
+
+  const candidates=[i-1,i+1,i-10,i+10].filter(x=>x>=0&&x<80).slice(0,4);
+  $('result').innerHTML='<div class="big">Piece #'+(i+1)+'</div>'+
     '<div style="margin-top:7px">Likely location: <b>Row '+(r+1)+', Column '+(c+1)+'</b></div>'+
     '<div style="margin-top:7px">Confidence: <span class="badge">96% demo</span></div>'+
     '<div style="margin-top:7px">Suggested rotation: <b>0°</b></div>'+
     '<div style="margin-top:16px"><b>Possible connecting pieces</b></div>'+
-    '<div class="matches">'+cand+'</div>';
+    '<div class="matches">'+candidates.map(x=>'<span class="match">Piece #'+(x+1)+'</span>').join('')+'</div>';
+}
+
+function handlePieceTap(e){
+  if(mode!=='sample') return;
+  const rect=piecesImg.getBoundingClientRect();
+  const x=(e.clientX-rect.left)/rect.width;
+  const y=(e.clientY-rect.top)/rect.height;
+  if(x<0||x>1||y<0||y>1)return;
+
+  // Account for the 52px title strip inside the sample image.
+  const titleRatio=52/piecesImg.naturalHeight;
+  const yy=(y-titleRatio)/(1-titleRatio);
+  if(yy<0)return;
+
+  let c=Math.floor(x*10), r=Math.floor(yy*8);
+  c=Math.max(0,Math.min(9,c)); r=Math.max(0,Math.min(7,r));
+  showResult(r*10+c);
+}
+$('piecesViewer').addEventListener('click',handlePieceTap);
+$('piecesViewer').addEventListener('pointerup',e=>{if(e.pointerType==='touch')handlePieceTap(e)});
+
+$('analyzeBtn').addEventListener('click',async()=>{
+  if(!refImg.src||!piecesImg.src){status('Please load both images first.');return}
+  progress(true,25);status('Preparing images…');
+  await new Promise(r=>setTimeout(r,350));progress(true,70);
+  await new Promise(r=>setTimeout(r,350));progress(true,100);
+  await new Promise(r=>setTimeout(r,150));progress(false);
+  analyzed=true;
+  status(mode==='sample'?'<b>Analysis complete.</b> Tap any piece to scout it.':'<b>Images loaded.</b> The real CV matcher is the next milestone.');
 });
+
+$('sampleBtn').addEventListener('click',()=>{
+  refImg.src='sample_reference.png';piecesImg.src='sample_pieces.png';mode='sample';analyzed=true;
+  marker.style.display='none';target.style.display='none';
+  $('result').innerHTML='<div class="big">Ready to scout</div><div class="hint">Tap any of the 80 pieces above.</div>';
+  status('Sample loaded. <b>Tap any piece now.</b>');
+});
+$('clearBtn').addEventListener('click',()=>{
+  refImg.removeAttribute('src');piecesImg.removeAttribute('src');marker.style.display='none';target.style.display='none';
+  $('result').innerHTML='<div class="big">Ready</div><div class="hint">Load two pictures to begin.</div>';
+  status('Load both images, then choose <b>Analyze puzzle</b>.');mode='user';analyzed=false;
+});
+function load(input,img){input.addEventListener('change',()=>{const f=input.files?.[0];if(f){img.src=URL.createObjectURL(f);mode='user';analyzed=false;status('Photo loaded. Load the other image, then choose <b>Analyze puzzle</b>.')}})}
+load($('refUpload'),refImg);load($('piecesUpload'),piecesImg);
 </script>
 </body>
 </html>
