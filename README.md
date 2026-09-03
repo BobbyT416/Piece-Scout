@@ -1,16 +1,18 @@
-# Piece Scout V1
+# Piece Scout v1.1
 
 GitHub Pages prototype.
 
-## Upload these four files to the repository root
+Upload these files to the repository root:
 - index.html
 - sample_reference.png
 - sample_pieces.png
 - README.md
 
-Enable GitHub Pages from **Settings → Pages → Deploy from a branch → main → / (root)**.
+Enable GitHub Pages from Settings → Pages → Deploy from a branch → main → / (root).
 
-### V1 behavior
-The sample loads automatically. Tap any piece in the scattered-pieces image; the piece is selected and its corresponding location is highlighted in the completed puzzle.
+## v1.1 fix
+Every one of the 80 sample pieces now has its own transparent button/touch target. This avoids relying on image-coordinate click detection and is designed to work on iPhone/iPad touch screens.
 
-This version uses the known sample mapping. Real computer-vision puzzle analysis is the next milestone.
+The footer displays **Piece Scout v1.1** so deployed versions can be verified.
+
+The sample mapping is known/pre-programmed. Real computer-vision matching is the next milestone.
