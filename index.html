@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#182b3a">
-<title>Piece Scout v2.3</title>
+<title>Piece Scout v2.4</title>
 <style>
 :root{--bg:#f4f1eb;--card:#fff;--ink:#182b3a;--muted:#697680;--accent:#1769aa;--line:#dedbd5;--good:#21683f;--warn:#6b5420}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
@@ -39,9 +39,9 @@ footer{text-align:center;color:#7a858c;font-size:13px;padding:26px 12px 32px}.ve
 <section class="card"><h2>Loose pieces</h2><div class="viewer" id="piecesViewer"><img id="piecesImg" src="sample_pieces.png" alt="Loose puzzle pieces"><div id="pieceLayer" class="piece-layer"></div></div><div class="legend"><span><i class="dot blue"></i>Detected piece</span></div><div class="hint">The analyzer attempts to separate pieces from the table, then uses image features to estimate each piece's location in the reference.</div></section>
 </div>
 <section class="panel" id="result"><div class="big">Ready to scout</div><div class="hint">Analyze your two photos, then tap a detected piece.</div></section><section class="panel" id="diagnostics" style="display:none"></section>
-<section class="panel"><div class="note"><b>V2.3 diagnostic milestone:</b> Each detected piece now gets an individual result row showing match status, confidence, feature count, and predicted rotation. This helps us identify exactly which pieces need better matching. <br><br><b> The analyzer combines piece segmentation with SIFT/ORB feature matching and RANSAC geometry. It also reports whether the failure happened during piece detection or image matching. It is still an early CV engine, so overlapping pieces, heavy glare, very low-detail artwork, and extreme perspective can cause misses.</div></section>
+<section class="panel"><div class="note"><b>V2.4 matching milestone:</b> Each detected piece now gets an individual result row showing match status, confidence, feature count, and predicted rotation. This helps us identify exactly which pieces need better matching. <br><br><b> The analyzer now adds multi-scale piece upscaling, rotated feature matching, color/edge similarity, and a fallback matcher for pieces that have too few keypoints for SIFT/ORB. It also reports whether the failure happened during piece detection or image matching. It is still an early CV engine, so overlapping pieces, glare, very low-detail artwork, and extreme perspective can cause misses.</div></section>
 </main>
-<footer><div class="version">Piece Scout v2.3</div><div>Build 2.3 • Diagnostic matching • Aurora 12 benchmark + multi-method CV matching</div></footer>
+<footer><div class="version">Piece Scout v2.4</div><div>Build 2.4 • Multi-scale matching • Aurora 12 benchmark + shape/color fallback</div></footer>
 <canvas id="refCanvas" class="hidden-canvas"></canvas><canvas id="piecesCanvas" class="hidden-canvas"></canvas>
 <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
 <script>
@@ -87,48 +87,93 @@ function detectPieces(src){
  for(let i=0;i<contours.size();i++){const c=contours.get(i),area=cv.contourArea(c);if(area>=minArea&&area<=maxArea){const rect=cv.boundingRect(c),fill=area/(rect.width*rect.height);if(rect.width>=14&&rect.height>=14&&fill>.28)out.push({rect,area,fill})}c.delete()}
  mask.delete();k.delete();contours.delete();hier.delete();out.sort((a,b)=>b.area-a.area);return out.slice(0,200)
 }
-function makeDetector(){if(cv.SIFT_create)return {name:'SIFT',obj:cv.SIFT_create(900)};return {name:'ORB',obj:new cv.ORB(1000)}}
+function makeDetector(){if(cv.SIFT_create)return {name:'SIFT',obj:cv.SIFT_create(1400)};return {name:'ORB',obj:new cv.ORB(1800)}}
 function rotateMat(src,deg){if(deg===0)return src.clone();let dst=new cv.Mat();if(deg===90)cv.rotate(src,dst,cv.ROTATE_90_CLOCKWISE);else if(deg===180)cv.rotate(src,dst,cv.ROTATE_180);else cv.rotate(src,dst,cv.ROTATE_90_COUNTERCLOCKWISE);return dst}
-function matchPiece(refGray,pieceGray,rect){
- const pad=6,x=Math.max(0,rect.x-pad),y=Math.max(0,rect.y-pad),w=Math.min(pieceGray.cols-x,rect.width+pad*2),h=Math.min(pieceGray.rows-y,rect.height+pad*2);
+function upscaleMat(src,f=3){let dst=new cv.Mat();cv.resize(src,dst,new cv.Size(0,0),f,f,cv.INTER_CUBIC);return dst}
+function meanColor(mat){let m=cv.mean(mat);return [m[0],m[1],m[2]]}
+function colorScore(a,b){const ca=meanColor(a),cb=meanColor(b);const d=Math.sqrt((ca[0]-cb[0])**2+(ca[1]-cb[1])**2+(ca[2]-cb[2])**2);return Math.max(0,1-d/220)}
+function edgeScore(a,b){let ga=new cv.Mat(),gb=new cv.Mat();cv.GaussianBlur(a,ga,new cv.Size(5,5),0);cv.GaussianBlur(b,gb,new cv.Size(5,5),0);let ea=new cv.Mat(),eb=new cv.Mat();cv.Canny(ga,ea,50,130);cv.Canny(gb,eb,50,130);let sa=cv.resize?new cv.Mat():null;let score=0;try{cv.resize(eb,sa,new cv.Size(ea.cols,ea.rows));let diff=new cv.Mat();cv.absdiff(ea,sa,diff);score=1-cv.countNonZero(diff)/Math.max(1,ea.rows*ea.cols);diff.delete()}finally{ga.delete();gb.delete();ea.delete();eb.delete();if(sa)sa.delete()}return Math.max(0,Math.min(1,score))}
+function templateFallback(refGray,roi,refColor,pieceColor,rect){
+ const angles=[0,90,180,270]; let best={score:0,location:null,confidence:0,goodMatches:0,rotation:null,warning:'Not enough local features; color/template fallback used.'};
+ const targetRatio=rect.width/Math.max(1,rect.height); const tw=Math.max(24,Math.round(refGray.cols*Math.min(.22,Math.max(.035,rect.width/Math.max(1,refGray.cols))))); const th=Math.max(24,Math.round(tw/Math.max(.45,Math.min(2.2,targetRatio))));
+ for(const deg of angles){const raw=rotateMat(pieceColor,deg),scaled=new cv.Mat();cv.resize(raw,scaled,new cv.Size(tw,th),0,0,cv.INTER_AREA);if(scaled.cols>=refColor.cols||scaled.rows>=refColor.rows){raw.delete();scaled.delete();continue}
+   const result=new cv.Mat();cv.matchTemplate(refColor,scaled,result,cv.TM_CCOEFF_NORMED);const mm=cv.minMaxLoc(result);const score=(mm.maxVal+1)/2;
+   if(score>best.score){best.score=score;best.location={x:(mm.maxLoc.x+tw/2)/refGray.cols,y:(mm.maxLoc.y+th/2)/refGray.rows,w:tw/refGray.cols,h:th/refGray.rows};best.rotation=deg;best.confidence=Math.round(Math.min(89,Math.max(25,score*100)));}
+   result.delete();raw.delete();scaled.delete();
+ }
+ if(best.score<.62){best.location=null;best.confidence=0;best.warning='No reliable match; feature and color/template scores were too weak.'}return best
+}
+function refColorMat(ref){let c=new cv.Mat();if(ref.channels()===4)cv.cvtColor(ref,c,cv.COLOR_RGBA2RGB);else ref.copyTo(c);return c}
+function matchPiece(refGray,pieceGray,rect,refColor,pieceColor){
+ const pad=Math.max(8,Math.round(Math.min(rect.width,rect.height)*.08));
+ const x=Math.max(0,rect.x-pad),y=Math.max(0,rect.y-pad);
+ const w=Math.min(pieceGray.cols-x,rect.width+pad*2),h=Math.min(pieceGray.rows-y,rect.height+pad*2);
  const roi=pieceGray.roi(new cv.Rect(x,y,w,h));
+ const roiColor=pieceColor.roi(new cv.Rect(x,y,w,h));
  let best={location:null,confidence:0,goodMatches:0,rotation:null,warning:'No reliable visual match was found.'};
  const detector=makeDetector();
+ let refKey=null,refDesc=null;
  try{
-   const kpR=new cv.KeyPointVector(),dR=new cv.Mat(); detector.obj.detectAndCompute(refGray,new cv.Mat(),kpR,dR,false);
-   if(dR.empty()||kpR.size()<4){best.warning='The completed image does not contain enough visual features.';return best}
+   refKey=new cv.KeyPointVector(); refDesc=new cv.Mat();
+   detector.obj.detectAndCompute(refGray,new cv.Mat(),refKey,refDesc,false);
    for(const deg of [0,90,180,270]){
-     const test=rotateMat(roi,deg),kpP=new cv.KeyPointVector(),dP=new cv.Mat();
+     const raw=rotateMat(roi,deg);
+     const rawColor=rotateMat(roiColor,deg);
+     const test=upscaleMat(raw,3);
+     const kpP=new cv.KeyPointVector();
+     const dP=new cv.Mat();
      detector.obj.detectAndCompute(test,new cv.Mat(),kpP,dP,false);
-     if(dP.empty()||kpP.size()<4){test.delete();kpP.delete();dP.delete();continue}
-     const norm=detector.name==='SIFT'?cv.NORM_L2:cv.NORM_HAMMING;
-     const bf=new cv.BFMatcher(norm,false),knn=new cv.DMatchVectorVector();bf.knnMatch(dP,dR,knn,2);
-     const good=[];
-     for(let i=0;i<knn.size();i++){const pair=knn.get(i);if(pair.size()>=2){const a=pair.get(0),b=pair.get(1);if(a.distance<0.72*b.distance)good.push(a)}pair.delete()}
-     if(good.length>=4){
-       const srcPts=new cv.Mat(good.length,1,cv.CV_32FC2),dstPts=new cv.Mat(good.length,1,cv.CV_32FC2);
-       for(let j=0;j<good.length;j++){const ps=kpP.get(good[j].queryIdx).pt,pt=kpR.get(good[j].trainIdx).pt;srcPts.data32F[j*2]=ps.x;srcPts.data32F[j*2+1]=ps.y;dstPts.data32F[j*2]=pt.x;dstPts.data32F[j*2+1]=pt.y}
-       const mask=new cv.Mat(),H=cv.findHomography(srcPts,dstPts,cv.RANSAC,6,mask);
-       if(!H.empty()){
-         let inliers=0;for(let z=0;z<mask.rows*mask.cols;z++)if(mask.data[z])inliers++;
-         const center=new cv.Mat(1,1,cv.CV_32FC2);center.data32F[0]=test.cols/2;center.data32F[1]=test.rows/2;const mapped=new cv.Mat();cv.perspectiveTransform(center,mapped,H);
-         const px=mapped.data32F[0],py=mapped.data32F[1];
-         const a=H.doubleAt(0,0),c=H.doubleAt(1,0),rot=Math.atan2(c,a)*180/Math.PI;
-         const score=inliers*2+good.length*.35;
-         if(!best._score||score>best._score){best={location:{x:Math.max(0,Math.min(1,px/refGray.cols)),y:Math.max(0,Math.min(1,py/refGray.rows)),w:Math.min(.18,rect.width/refGray.cols*1.5),h:Math.min(.18,rect.height/refGray.rows*1.5)},confidence:Math.min(99,Math.round(40+Math.min(59,(inliers/Math.max(1,good.length))*59))),goodMatches:good.length,rotation:((rot%360)+360)%360,warning:inliers<4?'Tentative match — not enough geometric agreement.':inliers<7?'Moderate match — verify the highlighted location.':'',_score:score}}
-         center.delete();mapped.delete()
-       } mask.delete();H.delete();srcPts.delete();dstPts.delete()
+     let featureCandidate=null;
+     if(!dP.empty() && kpP.size()>=3 && !refDesc.empty() && refKey.size()>=4){
+       const norm=detector.name==='SIFT'?cv.NORM_L2:cv.NORM_HAMMING;
+       const bf=new cv.BFMatcher(norm,false);
+       const knn=new cv.DMatchVectorVector();
+       bf.knnMatch(dP,refDesc,knn,2);
+       const good=[];
+       for(let i=0;i<knn.size();i++){
+         const pair=knn.get(i);
+         if(pair.size()>=2){const a=pair.get(0),b=pair.get(1);if(a.distance<.78*b.distance)good.push(a);}
+         pair.delete();
+       }
+       if(good.length>=3){
+         const srcPts=new cv.Mat(good.length,1,cv.CV_32FC2);
+         const dstPts=new cv.Mat(good.length,1,cv.CV_32FC2);
+         for(let j=0;j<good.length;j++){
+           const ps=kpP.get(good[j].queryIdx).pt, pt=refKey.get(good[j].trainIdx).pt;
+           srcPts.data32F[j*2]=ps.x;srcPts.data32F[j*2+1]=ps.y;
+           dstPts.data32F[j*2]=pt.x;dstPts.data32F[j*2+1]=pt.y;
+         }
+         const mask=new cv.Mat();
+         const H=cv.findHomography(srcPts,dstPts,cv.RANSAC,8,mask);
+         if(!H.empty()){
+           let inliers=0;for(let z=0;z<mask.rows*mask.cols;z++)if(mask.data[z])inliers++;
+           if(inliers>=3){
+             const center=new cv.Mat(1,1,cv.CV_32FC2);center.data32F[0]=test.cols/2;center.data32F[1]=test.rows/2;
+             const mapped=new cv.Mat();cv.perspectiveTransform(center,mapped,H);
+             const px=mapped.data32F[0],py=mapped.data32F[1];
+             const score=inliers*2+good.length*.35;
+             featureCandidate={score,location:{x:Math.max(0,Math.min(1,px/refGray.cols)),y:Math.max(0,Math.min(1,py/refGray.rows)),w:Math.min(.18,rect.width/refGray.cols*1.5),h:Math.min(.18,rect.height/refGray.rows*1.5)},confidence:Math.min(99,Math.round(42+Math.min(57,(inliers/Math.max(1,good.length))*57))),goodMatches:good.length,rotation:((deg+Math.atan2(H.doubleAt(1,0),H.doubleAt(0,0))*180/Math.PI)%360+360)%360,warning:inliers<5?'Tentative feature match — verify highlighted location.':''};
+             center.delete();mapped.delete();
+           }
+         }
+         mask.delete();H.delete();srcPts.delete();dstPts.delete();
+       }
+       knn.delete();bf.delete();
      }
-     knn.delete();bf.delete();test.delete();kpP.delete();dP.delete()
+     if(featureCandidate && (!best._score || featureCandidate.score>best._score)){best={...featureCandidate,_score:featureCandidate.score};}
+     raw.delete();rawColor.delete();test.delete();kpP.delete();dP.delete();
    }
-   kpR.delete();dR.delete();
- }catch(e){best.warning='Matching error: '+e.message}
- detector.obj.delete();roi.delete();
- if(best._score!==undefined)delete best._score;
- return best
+   if(!best.location){
+     const fb=templateFallback(refGray,roi,refColor,roiColor,rect);
+     if(fb.location)best={...fb,_fallback:true};
+   }
+ }catch(e){best.warning='Matching error: '+e.message;}
+ if(best._score!==undefined)delete best._score;if(best._fallback)delete best._fallback;
+ if(refKey)refKey.delete();if(refDesc)refDesc.delete();detector.obj.delete();roi.delete();roiColor.delete();
+ return best;
 }
-async function analyze(){if(!cvReady){status('Computer-vision engine is still loading. Please wait a moment and try again.');return}if(!refImg.src||!piecesImg.src){status('Please load both images first.');return}const btn=$('analyzeBtn');btn.disabled=true;mode='real';resetTarget();clearPieceSelection();layer.innerHTML='';results=[];try{status('<b>1/3</b> Reading your images…');await new Promise(r=>setTimeout(r,20));const ref=matFromImage(refImg,'refCanvas'),pieces=matFromImage(piecesImg,'piecesCanvas');status('<b>2/3</b> Detecting individual pieces…');await new Promise(r=>setTimeout(r,20));const detected=detectPieces(pieces);if(!detected.length){status('I could not isolate any pieces. Try a photo with the pieces separated on a plain, contrasting table.');ref.delete();pieces.delete();btn.disabled=false;return}status('<b>3/3</b> Matching '+detected.length+' detected piece'+(detected.length===1?'':'s')+' against the reference…');await new Promise(r=>setTimeout(r,20));let refGray=new cv.Mat();cv.cvtColor(ref,refGray,cv.COLOR_RGBA2GRAY);let pieceGray=new cv.Mat();cv.cvtColor(pieces,pieceGray,cv.COLOR_RGBA2GRAY);for(let i=0;i<detected.length;i++){results.push({...detected[i],...matchPiece(refGray,pieceGray,detected[i].rect)});addPieceButton(results[i],i,pieces.cols,pieces.rows);if(i%3===0)await new Promise(r=>setTimeout(r,0))}const found=results.filter(r=>r.location).length;status('<b>Analysis complete.</b> Detected '+results.length+' pieces; estimated reference locations for '+found+'. '+(found?'Tap a blue box around a piece.':'No visual matches were reliable enough. Try a clearer reference image or a plain contrasting background.'));$('result').innerHTML='<div class="big">'+found+' of '+results.length+' pieces matched</div><div class="hint">Tap any detected piece in the Loose Pieces photo to see its predicted location on the completed puzzle.</div>';
-const dg=$('diagnostics');dg.style.display='block';dg.innerHTML='<h2>Piece-by-piece diagnostics</h2><div class="diag-list">'+results.map((r,i)=>{const ok=!!r.location;const rot=r.rotation==null?'—':Math.round(((r.rotation%360)+360)%360)+'°';return '<button class="diag-row '+(ok?'ok':'miss')+'" type="button" onclick="selectResult('+i+')"><span class="diag-num">#'+(i+1)+'</span><span class="diag-status">'+(ok?'MATCHED':'NO MATCH')+'</span><span>'+r.confidence+'% confidence</span><span>'+r.goodMatches+' features</span><span>rot '+rot+'</span></button>'}).join('')+'</div>';refGray.delete();pieceGray.delete();ref.delete();pieces.delete()}catch(e){console.error(e);status('<b>Analysis error.</b> '+(e.message||e));}finally{btn.disabled=false}}
+async function analyze(){if(!cvReady){status('Computer-vision engine is still loading. Please wait a moment and try again.');return}if(!refImg.src||!piecesImg.src){status('Please load both images first.');return}const btn=$('analyzeBtn');btn.disabled=true;mode='real';resetTarget();clearPieceSelection();layer.innerHTML='';results=[];try{status('<b>1/3</b> Reading your images…');await new Promise(r=>setTimeout(r,20));const ref=matFromImage(refImg,'refCanvas'),pieces=matFromImage(piecesImg,'piecesCanvas');status('<b>2/3</b> Detecting individual pieces…');await new Promise(r=>setTimeout(r,20));const detected=detectPieces(pieces);if(!detected.length){status('I could not isolate any pieces. Try a photo with the pieces separated on a plain, contrasting table.');ref.delete();pieces.delete();btn.disabled=false;return}status('<b>3/3</b> Matching '+detected.length+' detected piece'+(detected.length===1?'':'s')+' against the reference…');await new Promise(r=>setTimeout(r,20));let refGray=new cv.Mat();cv.cvtColor(ref,refGray,cv.COLOR_RGBA2GRAY);let pieceGray=new cv.Mat();cv.cvtColor(pieces,pieceGray,cv.COLOR_RGBA2GRAY);let refColor=refColorMat(ref),pieceColor=refColorMat(pieces);for(let i=0;i<detected.length;i++){results.push({...detected[i],...matchPiece(refGray,pieceGray,detected[i].rect,refColor,pieceColor)});addPieceButton(results[i],i,pieces.cols,pieces.rows);if(i%3===0)await new Promise(r=>setTimeout(r,0))}const found=results.filter(r=>r.location).length;status('<b>Analysis complete.</b> Detected '+results.length+' pieces; estimated reference locations for '+found+'. '+(found?'Tap a blue box around a piece.':'No visual matches were reliable enough. Try a clearer reference image or a plain contrasting background.'));$('result').innerHTML='<div class="big">'+found+' of '+results.length+' pieces matched</div><div class="hint">Tap any detected piece in the Loose Pieces photo to see its predicted location on the completed puzzle.</div>';
+const dg=$('diagnostics');dg.style.display='block';dg.innerHTML='<h2>Piece-by-piece diagnostics</h2><div class="diag-list">'+results.map((r,i)=>{const ok=!!r.location;const rot=r.rotation==null?'—':Math.round(((r.rotation%360)+360)%360)+'°';return '<button class="diag-row '+(ok?'ok':'miss')+'" type="button" onclick="selectResult('+i+')"><span class="diag-num">#'+(i+1)+'</span><span class="diag-status">'+(ok?'MATCHED':'NO MATCH')+'</span><span>'+r.confidence+'% confidence</span><span>'+r.goodMatches+' features</span><span>rot '+rot+'</span></button>'}).join('')+'</div>';refColor.delete();pieceColor.delete();refGray.delete();pieceGray.delete();ref.delete();pieces.delete()}catch(e){console.error(e);status('<b>Analysis error.</b> '+(e.message||e));}finally{btn.disabled=false}}
 $('analyzeBtn').addEventListener('click',analyze);
 $('auroraBtn').addEventListener('click',loadAurora);
 $('sampleBtn').addEventListener('click',()=>{refImg.src='sample_reference.png';piecesImg.src='sample_pieces.png';mode='sample';resetTarget();layer.innerHTML='';results=[];clearPieceSelection();for(let i=0;i<80;i++){const r=Math.floor(i/10),c=i%10;results.push({rect:{x:c*10,y:r*12.5,width:10,height:12.5},location:{x:c*.1,y:r*.125,w:.1,h:.125},confidence:96,goodMatches:20,rotation:0});addPieceButton(results[i],i,100,100)}status('<b>Sample loaded.</b> Tap any piece. This sample retains its known mapping for interface testing.');$('result').innerHTML='<div class="big">Ready to scout</div><div class="hint">Tap any sample piece above.</div>'});
