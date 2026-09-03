@@ -1,35 +1,24 @@
-# Piece Scout v2.0
+# Piece Scout v2.2
 
-Piece Scout is a browser prototype for finding where physical jigsaw pieces belong.
+GitHub Pages prototype for the Piece Scout puzzle-piece locator.
 
-## What changed in v2.0
+## What's new in v2.2
+- Adds a **Load Aurora 12 benchmark** button.
+- The benchmark downloads a known matched pair from the public `Devanshusp/jigsaw-puzzle-solver` dataset:
+  - `aurora.png` = completed/reference image
+  - `aurora12.png` = same puzzle represented as 12 scrambled pieces
+- Uses the existing browser-side OpenCV pipeline for segmentation, SIFT/ORB feature matching, rotation testing, and RANSAC verification.
+- Keeps the known-good 80-piece interface sample.
+- Visible version number: **Piece Scout v2.2**.
 
-This is the first real computer-vision milestone. The app now:
+## Test order
+1. Open the page.
+2. Wait for OpenCV to finish loading.
+3. Click **Load Aurora 12 benchmark**.
+4. Click **Analyze puzzle**.
+5. Report how many pieces are detected and how many are matched.
 
-1. Loads a completed puzzle/reference photo.
-2. Loads a photo of loose pieces.
-3. Uses OpenCV.js in the browser to estimate the table/background color and detect separated piece contours.
-4. Uses ORB feature matching plus a RANSAC homography to estimate where each detected piece appears in the reference image.
-5. Places touch/click targets over detected pieces.
-6. Shows a red predicted location on the completed puzzle when a piece is selected.
+The benchmark source is the public GitHub project documented here: https://github.com/Devanshusp/jigsaw-puzzle-solver
 
-The sample test remains available and keeps its known mapping so the interface can be tested independently of computer vision.
-
-## Important limitations
-
-This is an early CV engine, not a finished puzzle solver. It works best with:
-
-- a mostly straight-on reference image;
-- a clear completed-puzzle image rather than a heavily angled box photo;
-- loose pieces separated from each other;
-- a plain, reasonably uniform table/background;
-- good lighting and limited glare;
-- puzzle artwork with enough visual detail for feature matching.
-
-The next engineering milestones are better piece segmentation, perspective correction, edge/shape analysis, stronger artwork matching for low-texture pieces, rotation estimation, neighboring-piece suggestions, and support for large piece counts.
-
-## GitHub Pages
-
-Upload the contents of this folder to a repository and enable GitHub Pages for the branch/folder containing `index.html`.
-
-OpenCV.js is loaded from the official OpenCV documentation CDN, so the deployed page needs internet access for the CV library.
+## Important
+This remains an experimental computer-vision prototype. The Aurora benchmark image is a controlled dataset image, not a photograph from a phone camera. Real-world photos will require additional perspective correction, segmentation, and matching improvements.
