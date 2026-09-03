@@ -4,143 +4,67 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#182b3a">
-<title>Piece Scout v1.1</title>
+<title>Piece Scout v2.0</title>
 <style>
-:root{--bg:#f4f1eb;--card:#fff;--ink:#182b3a;--muted:#697680;--accent:#1769aa;--line:#dedbd5}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
-header{background:#fff;border-bottom:1px solid var(--line);padding:18px 20px;position:sticky;top:0;z-index:10}
-.brand{font-size:29px;font-weight:800}.tag{color:var(--muted);margin-top:3px}
-main{max-width:1120px;margin:auto;padding:16px}.steps{display:flex;gap:8px;overflow:auto;margin-bottom:14px}
-.step{background:#fff;border:1px solid var(--line);border-radius:999px;padding:8px 13px;white-space:nowrap;font-size:14px}.step.active{background:var(--ink);color:#fff}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.card,.panel{background:#fff;border-radius:18px;padding:15px;box-shadow:0 2px 12px #00000012}
-h2{font-size:18px;margin:0 0 11px}.viewer{position:relative;overflow:hidden;border-radius:12px;background:#e9e5dd}
-.viewer img{width:100%;display:block;user-select:none;-webkit-user-drag:none}
-.piece-grid{position:absolute;inset:0;display:grid;grid-template-columns:repeat(10,1fr);grid-template-rows:repeat(8,1fr);padding-top:4.72%;touch-action:manipulation}
-.piece-hit{appearance:none;border:2px solid transparent;background:transparent;padding:0;margin:0;cursor:pointer;min-width:0;min-height:0}
-.piece-hit:active{background:#1769aa22}
-.piece-hit.selected{border:4px solid var(--accent);background:#1769aa18;border-radius:8px}
-.target{position:absolute;border:4px solid #d33;background:#d3303314;border-radius:8px;display:none;pointer-events:none}
-.hint{font-size:13px;color:var(--muted);margin-top:8px}.panel{margin-top:16px}.big{font-size:24px;font-weight:800}
-.badge{display:inline-block;background:#e9f5ee;color:#21683f;padding:5px 9px;border-radius:999px;font-weight:700}
-.matches{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.match{background:#edf5fa;padding:9px 12px;border-radius:999px;font-weight:650}
-.uploads{display:grid;grid-template-columns:1fr 1fr;gap:12px}label{font-weight:650}.file{margin-top:7px;width:100%}
-.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:12px}
-button.action{border:0;border-radius:12px;padding:11px 15px;font-size:15px;font-weight:750;background:var(--ink);color:#fff;cursor:pointer}
-button.secondary{background:#e8edf0;color:var(--ink)}
-.status{margin-top:10px;padding:10px 12px;background:#f6f8f9;border-radius:10px;color:#53616a;font-size:14px}
-.note{margin-top:12px;padding:12px;border-radius:10px;background:#fff7df;color:#6b5420;font-size:13px}
-footer{text-align:center;color:#7a858c;font-size:13px;padding:26px 12px 32px}
-.version{font-weight:750;color:#58656d}
-@media(max-width:760px){.grid,.uploads{grid-template-columns:1fr}main{padding:12px}}
+:root{--bg:#f4f1eb;--card:#fff;--ink:#182b3a;--muted:#697680;--accent:#1769aa;--line:#dedbd5;--good:#21683f;--warn:#6b5420}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+header{background:#fff;border-bottom:1px solid var(--line);padding:18px 20px;position:sticky;top:0;z-index:20}.brand{font-size:29px;font-weight:800}.tag{color:var(--muted);margin-top:3px}
+main{max-width:1180px;margin:auto;padding:16px}.steps{display:flex;gap:8px;overflow:auto;margin-bottom:14px}.step{background:#fff;border:1px solid var(--line);border-radius:999px;padding:8px 13px;white-space:nowrap;font-size:14px}.step.active{background:var(--ink);color:#fff}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.card,.panel{background:#fff;border-radius:18px;padding:15px;box-shadow:0 2px 12px #00000012}h2{font-size:18px;margin:0 0 11px}
+.viewer{position:relative;overflow:hidden;border-radius:12px;background:#e9e5dd}.viewer img{width:100%;display:block;user-select:none;-webkit-user-drag:none}.piece-layer{position:absolute;inset:0;touch-action:manipulation}.piece-hit{position:absolute;appearance:none;border:2px solid transparent;background:#1769aa0d;padding:0;margin:0;cursor:pointer;border-radius:7px}.piece-hit:hover{border-color:#1769aa99}.piece-hit:active,.piece-hit.selected{border:4px solid var(--accent);background:#1769aa22}.target{position:absolute;border:4px solid #d33;background:#d3303314;border-radius:8px;display:none;pointer-events:none;box-shadow:0 0 0 2px #fff8}
+.hint{font-size:13px;color:var(--muted);margin-top:8px}.big{font-size:24px;font-weight:800}.badge{display:inline-block;background:#e9f5ee;color:var(--good);padding:5px 9px;border-radius:999px;font-weight:700}.matches{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.match{background:#edf5fa;padding:9px 12px;border-radius:999px;font-weight:650}
+.uploads{display:grid;grid-template-columns:1fr 1fr;gap:12px}label{font-weight:650}.file{margin-top:7px;width:100%}.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:12px}button.action{border:0;border-radius:12px;padding:11px 15px;font-size:15px;font-weight:750;background:var(--ink);color:#fff;cursor:pointer}button.secondary{background:#e8edf0;color:var(--ink)}button:disabled{opacity:.55;cursor:not-allowed}
+.status{margin-top:10px;padding:10px 12px;background:#f6f8f9;border-radius:10px;color:#53616a;font-size:14px}.note{margin-top:12px;padding:12px;border-radius:10px;background:#fff7df;color:var(--warn);font-size:13px}.ok{background:#edf8f1;color:var(--good)}
+.legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--muted)}.dot{width:10px;height:10px;border-radius:3px;display:inline-block;vertical-align:-1px;margin-right:4px}.blue{background:#1769aa33;border:1px solid #1769aa}.red{background:#d3303314;border:1px solid #d33}
+footer{text-align:center;color:#7a858c;font-size:13px;padding:26px 12px 32px}.version{font-weight:750;color:#58656d}
+.hidden-canvas{display:none}@media(max-width:760px){.grid,.uploads{grid-template-columns:1fr}main{padding:12px}.brand{font-size:25px}}
 </style>
 </head>
 <body>
-<header><div class="brand">🧩 Piece Scout</div><div class="tag">Your AI puzzle assistant</div></header>
+<header><div class="brand">🧩 Piece Scout</div><div class="tag">Find where a real puzzle piece belongs</div></header>
 <main>
 <div class="steps"><div class="step active">1. Reference</div><div class="step active">2. Pieces</div><div class="step active">3. Scout</div></div>
-
 <section class="panel">
 <h2>Load your puzzle</h2>
 <div class="uploads">
 <label>Completed puzzle / box image<input class="file" id="refUpload" type="file" accept="image/*"></label>
 <label>Photo of loose pieces<input class="file" id="piecesUpload" type="file" accept="image/*"></label>
 </div>
-<div class="actions">
-<button class="action" id="analyzeBtn">Analyze puzzle</button>
-<button class="action secondary" id="sampleBtn">Load sample test</button>
-<button class="action secondary" id="clearBtn">Clear</button>
-</div>
-<div class="status" id="status">Sample loaded. <b>Tap any piece</b> in the Loose Pieces image.</div>
+<div class="actions"><button class="action" id="analyzeBtn">Analyze puzzle</button><button class="action secondary" id="sampleBtn">Load sample test</button><button class="action secondary" id="clearBtn">Clear</button></div>
+<div class="status" id="status">Load two photos, then choose <b>Analyze puzzle</b>. The sample can still be used to verify the interface.</div>
 </section>
-
 <div class="grid" style="margin-top:16px">
-<section class="card"><h2>Completed puzzle</h2><div class="viewer"><img id="refImg" src="sample_reference.png" alt="Completed puzzle reference"><div id="target" class="target"></div></div><div class="hint">The red box shows where the selected piece belongs.</div></section>
-
-<section class="card"><h2>Loose pieces</h2>
-<div class="viewer" id="piecesViewer">
-<img id="piecesImg" src="sample_pieces.png" alt="Loose puzzle pieces">
-<div id="pieceGrid" class="piece-grid" aria-label="Puzzle pieces"></div>
+<section class="card"><h2>Completed puzzle</h2><div class="viewer" id="refViewer"><img id="refImg" src="sample_reference.png" alt="Completed puzzle reference"><div id="target" class="target"></div></div><div class="legend"><span><i class="dot red"></i>Predicted location</span></div><div class="hint">For the first real test, use a clear, mostly straight-on photo of the completed puzzle image. A box photo may work if the puzzle artwork is clearly visible.</div></section>
+<section class="card"><h2>Loose pieces</h2><div class="viewer" id="piecesViewer"><img id="piecesImg" src="sample_pieces.png" alt="Loose puzzle pieces"><div id="pieceLayer" class="piece-layer"></div></div><div class="legend"><span><i class="dot blue"></i>Detected piece</span></div><div class="hint">The analyzer attempts to separate pieces from the table, then uses image features to estimate each piece's location in the reference.</div></section>
 </div>
-<div class="hint">Each piece now has its own touch/click target. Tap anywhere inside a piece.</div>
-</section>
-</div>
-
-<section class="panel" id="result"><div class="big">Ready to scout</div><div class="hint">Tap a piece above.</div></section>
-<section class="panel"><div class="note"><b>V1.1:</b> This build fixes piece selection by using dedicated touch/click targets over every sample piece. The sample mapping is still pre-programmed; real computer-vision matching is the next milestone.</div></section>
+<section class="panel" id="result"><div class="big">Ready to scout</div><div class="hint">Analyze your two photos, then tap a detected piece.</div></section>
+<section class="panel"><div class="note"><b>V2.0 real-analysis milestone:</b> this build is no longer limited to the pre-programmed sample. It uses OpenCV in the browser to detect likely loose-piece contours and ORB feature matching to estimate where each detected piece appears in the completed reference. It is an early CV engine, so difficult lighting, patterned tables, overlapping pieces, heavy glare, and box perspective can still cause misses.</div></section>
 </main>
-<footer><div class="version">Piece Scout v1.1</div><div>Build 1.1 • GitHub Pages prototype</div></footer>
-
+<footer><div class="version">Piece Scout v2.0</div><div>Build 2.0 • GitHub Pages prototype • Real CV matching milestone</div></footer>
+<canvas id="refCanvas" class="hidden-canvas"></canvas><canvas id="piecesCanvas" class="hidden-canvas"></canvas>
+<script async src="https://docs.opencv.org/4.x/opencv.js"></script>
 <script>
 const $=id=>document.getElementById(id);
-const refImg=$('refImg'),piecesImg=$('piecesImg'),target=$('target'),grid=$('pieceGrid');
-let mode='sample', analyzed=true;
-
+const refImg=$('refImg'),piecesImg=$('piecesImg'),target=$('target'),layer=$('pieceLayer');
+let mode='sample', cvReady=false, results=[], objectUrls=[];
 function status(t){$('status').innerHTML=t}
-
-function selectPiece(i){
-  if(mode!=='sample'||!analyzed)return;
-  document.querySelectorAll('.piece-hit').forEach((b,n)=>b.classList.toggle('selected',n===i));
-  const r=Math.floor(i/10),c=i%10;
-  target.style.display='block';
-  target.style.left=(c*10)+'%';
-  target.style.top=(r*12.5)+'%';
-  target.style.width='10%';
-  target.style.height='12.5%';
-  const candidates=[i-1,i+1,i-10,i+10].filter(x=>x>=0&&x<80).slice(0,4);
-  $('result').innerHTML='<div class="big">Piece #'+(i+1)+'</div>'+
-    '<div style="margin-top:7px">Likely location: <b>Row '+(r+1)+', Column '+(c+1)+'</b></div>'+
-    '<div style="margin-top:7px">Confidence: <span class="badge">96% demo</span></div>'+
-    '<div style="margin-top:7px">Suggested rotation: <b>0°</b></div>'+
-    '<div style="margin-top:16px"><b>Possible connecting pieces</b></div>'+
-    '<div class="matches">'+candidates.map(x=>'<span class="match">Piece #'+(x+1)+'</span>').join('')+'</div>';
-}
-
-function buildPieceTargets(){
-  grid.innerHTML='';
-  for(let i=0;i<80;i++){
-    const b=document.createElement('button');
-    b.type='button';
-    b.className='piece-hit';
-    b.setAttribute('aria-label','Puzzle piece '+(i+1));
-    b.addEventListener('click',()=>selectPiece(i));
-    b.addEventListener('pointerdown',()=>selectPiece(i));
-    grid.appendChild(b);
-  }
-}
-buildPieceTargets();
-
-$('sampleBtn').addEventListener('click',()=>{
-  refImg.src='sample_reference.png';piecesImg.src='sample_pieces.png';
-  mode='sample';analyzed=true;target.style.display='none';
-  document.querySelectorAll('.piece-hit').forEach(b=>b.classList.remove('selected'));
-  $('result').innerHTML='<div class="big">Ready to scout</div><div class="hint">Tap any piece above.</div>';
-  status('Sample loaded. <b>Tap any piece now.</b>');
-});
-
-$('analyzeBtn').addEventListener('click',()=>{
-  if(!refImg.src||!piecesImg.src){status('Please load both images first.');return}
-  analyzed=true;
-  status(mode==='sample'?'<b>Analysis complete.</b> Tap any piece to scout it.':'<b>Images loaded.</b> Real CV matching is the next milestone.');
-});
-
-$('clearBtn').addEventListener('click',()=>{
-  refImg.removeAttribute('src');piecesImg.removeAttribute('src');target.style.display='none';
-  document.querySelectorAll('.piece-hit').forEach(b=>b.classList.remove('selected'));
-  analyzed=false;mode='user';
-  $('result').innerHTML='<div class="big">Ready</div><div class="hint">Load two pictures to begin.</div>';
-  status('Load both images, then choose <b>Analyze puzzle</b>.');
-});
-
-function load(input,img){
-  input.addEventListener('change',()=>{
-    const f=input.files?.[0];
-    if(!f)return;
-    img.src=URL.createObjectURL(f);mode='user';analyzed=false;
-    status('Photo loaded. Load the other image, then choose <b>Analyze puzzle</b>.');
-  });
-}
-load($('refUpload'),refImg);load($('piecesUpload'),piecesImg);
+function waitForOpenCV(){if(window.cv){cvReady=true;status('OpenCV is ready. Load two photos and choose <b>Analyze puzzle</b>.');}else setTimeout(waitForOpenCV,250)}waitForOpenCV();
+function resetTarget(){target.style.display='none'}
+function clearPieceSelection(){document.querySelectorAll('.piece-hit').forEach(b=>b.classList.remove('selected'))}
+function selectResult(i){const r=results[i];if(!r)return;clearPieceSelection();r.button.classList.add('selected');if(r.location){target.style.display='block';target.style.left=(r.location.x*100)+'%';target.style.top=(r.location.y*100)+'%';target.style.width=Math.max(5,r.location.w*100)+'%';target.style.height=Math.max(5,r.location.h*100)+'%';}else resetTarget();
+ const rot=r.rotation==null?'Unknown':Math.round(((r.rotation%360)+360)%360)+'°';
+ $('result').innerHTML='<div class="big">Piece #'+(i+1)+'</div><div style="margin-top:7px">Estimated location: <b>'+(r.location?('X '+Math.round(r.location.x*100)+'%, Y '+Math.round(r.location.y*100)+'%'):'Not found')+'</b></div><div style="margin-top:7px">Feature confidence: <span class="badge">'+r.confidence+'%</span></div><div style="margin-top:7px">Suggested rotation: <b>'+rot+'</b></div><div style="margin-top:7px">Good feature matches: <b>'+r.goodMatches+'</b></div>'+(r.warning?'<div class="hint" style="margin-top:9px">'+r.warning+'</div>':'');}
+function addPieceButton(r,i,totalW,totalH){const b=document.createElement('button');b.type='button';b.className='piece-hit';b.setAttribute('aria-label','Detected puzzle piece '+(i+1));b.style.left=(r.rect.x/totalW*100)+'%';b.style.top=(r.rect.y/totalH*100)+'%';b.style.width=(r.rect.width/totalW*100)+'%';b.style.height=(r.rect.height/totalH*100)+'%';b.addEventListener('click',()=>selectResult(i));b.addEventListener('pointerdown',()=>selectResult(i));r.button=b;layer.appendChild(b)}
+function loadImageFile(file,img){return new Promise((resolve,reject)=>{const u=URL.createObjectURL(file);objectUrls.push(u);img.onload=()=>resolve();img.onerror=reject;img.src=u})}
+function matFromImage(img,canvasId){const c=$(canvasId),ctx=c.getContext('2d');c.width=img.naturalWidth;c.height=img.naturalHeight;ctx.drawImage(img,0,0);return cv.imread(c)}
+function medianBorder(mat){let vals=[];const step=Math.max(1,Math.floor(Math.min(mat.rows,mat.cols)/200));for(let y=0;y<mat.rows;y+=step){for(let x=0;x<mat.cols;x+=step){if(y<mat.rows*.05||y>mat.rows*.95||x<mat.cols*.05||x>mat.cols*.95){const p=mat.ucharPtr(y,x);vals.push([p[0],p[1],p[2]])}}}if(!vals.length)return [200,200,200];const m=a=>{a.sort((x,y)=>x-y);return a[Math.floor(a.length/2)]};return [m(vals.map(v=>v[0])),m(vals.map(v=>v[1])),m(vals.map(v=>v[2]))]}
+function detectPieces(src){const bg=medianBorder(src),mask=new cv.Mat(src.rows,src.cols,cv.CV_8UC1);const p=src.data,md=mask.data;const threshold=38;for(let i=0,j=0;i<p.length;i+=4,j++){const db=p[i]-bg[0],dg=p[i+1]-bg[1],dr=p[i+2]-bg[2];md[j]=(Math.sqrt(db*db+dg*dg+dr*dr)>threshold)?255:0}const k=cv.Mat.ones(7,7,cv.CV_8U);cv.morphologyEx(mask,mask,cv.MORPH_CLOSE,k);cv.morphologyEx(mask,mask,cv.MORPH_OPEN,k);const contours=new cv.MatVector(),hier=new cv.Mat();cv.findContours(mask,contours,hier,cv.RETR_EXTERNAL,cv.CHAIN_APPROX_SIMPLE);const minArea=Math.max(350,src.rows*src.cols*.001);const out=[];for(let i=0;i<contours.size();i++){const c=contours.get(i),area=cv.contourArea(c);if(area>=minArea){const rect=cv.boundingRect(c);if(rect.width>=18&&rect.height>=18&&rect.width<src.cols*.9&&rect.height<src.rows*.9)out.push({rect,area})}c.delete()}mask.delete();k.delete();contours.delete();hier.delete();out.sort((a,b)=>b.area-a.area);return out.slice(0,200)}
+function matchPiece(refGray,pieceGray,rect){const pad=8,x=Math.max(0,rect.x-pad),y=Math.max(0,rect.y-pad),w=Math.min(pieceGray.cols-x,rect.width+pad*2),h=Math.min(pieceGray.rows-y,rect.height+pad*2);const roi=pieceGray.roi(new cv.Rect(x,y,w,h));const orb=new cv.ORB(700);const kp1=new cv.KeyPointVector(),kp2=new cv.KeyPointVector(),d1=new cv.Mat(),d2=new cv.Mat();orb.detectAndCompute(roi,new cv.Mat(),kp1,d1,false);orb.detectAndCompute(refGray,new cv.Mat(),kp2,d2,false);let best={location:null,confidence:0,goodMatches:0,rotation:null,warning:'Not enough distinctive image features were found in this piece.'};if(!d1.empty()&&!d2.empty()&&kp1.size()>=4&&kp2.size()>=4){const bf=new cv.BFMatcher(cv.NORM_HAMMING,false),knn=new cv.DMatchVectorVector();bf.knnMatch(d1,d2,knn,2);const good=[];for(let i=0;i<knn.size();i++){const pair=knn.get(i);if(pair.size()>=2){const a=pair.get(0),b=pair.get(1);if(a.distance<.74*b.distance)good.push(a)}pair.delete()}if(good.length>=4){const srcPts=new cv.Mat(),dstPts=new cv.Mat();const s=[],d=[];for(const m of good){const ps=kp1.get(m.queryIdx).pt,pt=kp2.get(m.trainIdx).pt;s.push(ps.x,ps.y);d.push(pt.x,pt.y)}srcPts.create(good.length,1,cv.CV_32FC2);dstPts.create(good.length,1,cv.CV_32FC2);srcPts.data32F.set(s);dstPts.data32F.set(d);const H=cv.findHomography(srcPts,dstPts,cv.RANSAC,5);if(!H.empty()){const center=new cv.Mat(1,1,cv.CV_32FC2);center.data32F[0]=w/2;center.data32F[1]=h/2;const mapped=new cv.Mat();cv.perspectiveTransform(center,mapped,H);const px=mapped.data32F[0],py=mapped.data32F[1];const a=H.doubleAt(0,0),c=H.doubleAt(1,0);const rot=Math.atan2(c,a)*180/Math.PI;const inliers=Math.max(0,Math.min(good.length,Math.round(good.length*.65)));best={location:{x:Math.max(0,Math.min(1,(x+px)/refGray.cols)),y:Math.max(0,Math.min(1,(y+py)/refGray.rows)),w:Math.min(.18,rect.width/refGray.cols*1.2),h:Math.min(.18,rect.height/refGray.rows*1.2)},confidence:Math.min(99,Math.round(55+inliers/good.length*44)),goodMatches:good.length,rotation:rot,warning:good.length<8?'Low feature count — treat this location as a tentative match.':''};center.delete();mapped.delete();H.delete()}srcPts.delete();dstPts.delete()}knn.delete();bf.delete()}orb.delete();kp1.delete();kp2.delete();d1.delete();d2.delete();roi.delete();return best}
+async function analyze(){if(!cvReady){status('Computer-vision engine is still loading. Please wait a moment and try again.');return}if(!refImg.src||!piecesImg.src){status('Please load both images first.');return}const btn=$('analyzeBtn');btn.disabled=true;mode='real';resetTarget();clearPieceSelection();layer.innerHTML='';results=[];try{status('<b>1/3</b> Reading your images…');await new Promise(r=>setTimeout(r,20));const ref=matFromImage(refImg,'refCanvas'),pieces=matFromImage(piecesImg,'piecesCanvas');status('<b>2/3</b> Detecting individual pieces…');await new Promise(r=>setTimeout(r,20));const detected=detectPieces(pieces);if(!detected.length){status('I could not isolate any pieces. Try a photo with the pieces separated on a plain, contrasting table.');ref.delete();pieces.delete();btn.disabled=false;return}status('<b>3/3</b> Matching '+detected.length+' detected piece'+(detected.length===1?'':'s')+' against the reference…');await new Promise(r=>setTimeout(r,20));let refGray=new cv.Mat();cv.cvtColor(ref,refGray,cv.COLOR_RGBA2GRAY);let pieceGray=new cv.Mat();cv.cvtColor(pieces,pieceGray,cv.COLOR_RGBA2GRAY);for(let i=0;i<detected.length;i++){results.push({...detected[i],...matchPiece(refGray,pieceGray,detected[i].rect)});addPieceButton(results[i],i,pieces.cols,pieces.rows);if(i%3===0)await new Promise(r=>setTimeout(r,0))}const found=results.filter(r=>r.location).length;status('<b>Analysis complete.</b> Detected '+results.length+' pieces; estimated reference locations for '+found+'. Tap a blue box around a piece.');$('result').innerHTML='<div class="big">'+found+' of '+results.length+' pieces matched</div><div class="hint">Tap any detected piece in the Loose Pieces photo to see its predicted location on the completed puzzle.</div>';refGray.delete();pieceGray.delete();ref.delete();pieces.delete()}catch(e){console.error(e);status('<b>Analysis error.</b> '+(e.message||e));}finally{btn.disabled=false}}
+$('analyzeBtn').addEventListener('click',analyze);
+$('sampleBtn').addEventListener('click',()=>{refImg.src='sample_reference.png';piecesImg.src='sample_pieces.png';mode='sample';resetTarget();layer.innerHTML='';results=[];clearPieceSelection();for(let i=0;i<80;i++){const r=Math.floor(i/10),c=i%10;results.push({rect:{x:c*10,y:r*12.5,width:10,height:12.5},location:{x:c*.1,y:r*.125,w:.1,h:.125},confidence:96,goodMatches:20,rotation:0});addPieceButton(results[i],i,100,100)}status('<b>Sample loaded.</b> Tap any piece. This sample retains its known mapping for interface testing.');$('result').innerHTML='<div class="big">Ready to scout</div><div class="hint">Tap any sample piece above.</div>'});
+$('clearBtn').addEventListener('click',()=>{objectUrls.forEach(u=>URL.revokeObjectURL(u));objectUrls=[];refImg.removeAttribute('src');piecesImg.removeAttribute('src');layer.innerHTML='';results=[];resetTarget();$('result').innerHTML='<div class="big">Ready</div><div class="hint">Load two pictures to begin.</div>';status('Load both images, then choose <b>Analyze puzzle</b>.')});
+$('refUpload').addEventListener('change',async e=>{const f=e.target.files?.[0];if(!f)return;await loadImageFile(f,refImg);mode='real';resetTarget();status('Reference photo loaded. Now load the loose-pieces photo.');});
+$('piecesUpload').addEventListener('change',async e=>{const f=e.target.files?.[0];if(!f)return;await loadImageFile(f,piecesImg);mode='real';resetTarget();layer.innerHTML='';results=[];status('Loose-pieces photo loaded. Choose <b>Analyze puzzle</b> when both photos are ready.');});
 </script>
-</body>
-</html>
+</body></html>
