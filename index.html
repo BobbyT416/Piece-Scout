@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#182b3a">
-<title>Piece Scout v2.8.1</title>
+<title>Piece Scout v2.8.2</title>
 <style>
 :root{--bg:#f4f1eb;--card:#fff;--ink:#182b3a;--muted:#697680;--accent:#1769aa;--line:#dedbd5;--good:#21683f;--warn:#6b5420}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
@@ -41,7 +41,7 @@ footer{text-align:center;color:#7a858c;font-size:13px;padding:26px 12px 32px}.ve
 <section class="panel" id="result"><div class="big">Ready to scout</div><div class="hint">Analyze your two photos, then tap a detected piece. v2.7 will also look for pieces whose edges may connect.</div></section><section class="panel" id="diagnostics" style="display:none"></section>
 <section class="panel"><div class="note"><b>V2.7.7 matching milestone:</b> The analyzer now compares the four edges of detected pieces to find likely tab-to-hole connections. Tap a piece to see its strongest connection candidates. This is an early edge-matching experiment, so candidates are suggestions rather than guaranteed fits.<br><br><b>Earlier matching milestone:</b> Each detected piece now gets an individual result row showing match status, confidence, feature count, and predicted rotation. This helps us identify exactly which pieces need better matching. <br><br><b> The analyzer now requires stronger geometric evidence before placing a piece. Weak 3-point/low-feature guesses are rejected instead of being shown as high-confidence locations. It is still an early CV engine, so overlapping pieces, glare, very low-detail artwork, and extreme perspective can cause misses.</div></section>
 </main>
-<footer><div class="version">Piece Scout v2.8.1</div><div>Build 2.8.1 • Grid-aware artwork + shape assignment</div></footer>
+<footer><div class="version">Piece Scout v2.8.2</div><div>Build 2.8.1 • Grid-aware artwork + shape assignment</div></footer>
 <canvas id="refCanvas" class="hidden-canvas"></canvas><canvas id="piecesCanvas" class="hidden-canvas"></canvas>
 <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
 <script>
@@ -315,19 +315,29 @@ function hungarianMax(matrix){
   const ans=new Array(n).fill(-1);for(let j=1;j<=m;j++)if(p[j])ans[p[j]-1]=j-1;return ans;
 }
 async function gridMatchAll(refGray,pieces,pieceGray,detected,pieceBg){
-  // Grid-aware artwork matcher.  Unlike the previous descriptor-only approach,
-  // this searches the actual reference image for the piece artwork at multiple
-  // scales, then uses the piece's flat-edge geometry only as a placement filter.
+  // Fast grid-aware artwork matcher.  The previous version searched the entire
+  // reference image for every piece/rotation/scale and then scanned the result
+  // matrix in JavaScript.  That is unnecessarily expensive on phones.
+  // Here each candidate is searched only inside its grid cell, which cuts the
+  // search area dramatically while preserving the artwork-based placement.
   const dims=inferGridDims(refGray.cols,refGray.rows,detected.length);
   if(!dims||dims.rows*dims.cols!==detected.length)return null;
   const rows=dims.rows,cols=dims.cols;
-  const refScale=Math.min(.5,1024/Math.max(refGray.cols,refGray.rows));
-  const refSmall=new cv.Mat();
-  cv.resize(refGray,refSmall,new cv.Size(Math.max(1,Math.round(refGray.cols*refScale)),Math.max(1,Math.round(refGray.rows*refScale))),0,0,cv.INTER_AREA);
+  const cellW=refGray.cols/cols,cellH=refGray.rows/rows;
   const scoreMat=Array.from({length:detected.length},()=>new Array(detected.length).fill(-1));
   const rotMat=Array.from({length:detected.length},()=>new Array(detected.length).fill(0));
   const locMat=Array.from({length:detected.length},()=>new Array(detected.length).fill(null));
-  const flatMat=Array.from({length:detected.length},()=>new Array(detected.length).fill(null));
+
+  // Estimate the scale from the detected piece size versus a reference cell.
+  // A small three-value search handles tab/hole geometry without exploding the
+  // amount of work.  Each template is evaluated only against its own cell.
+  const widths=detected.map(d=>d.rect.width).sort((a,b)=>a-b);
+  const heights=detected.map(d=>d.rect.height).sort((a,b)=>a-b);
+  const medW=widths[Math.floor(widths.length/2)]||cellW;
+  const medH=heights[Math.floor(heights.length/2)]||cellH;
+  const baseScale=Math.max(.85,Math.min(2.0,Math.min(cellW/medW,cellH/medH)));
+  const scales=[baseScale*.90,baseScale,baseScale*1.10];
+
   try{
     for(let i=0;i<detected.length;i++){
       const d=detected[i];
@@ -337,86 +347,85 @@ async function gridMatchAll(refGray,pieces,pieceGray,detected,pieceBg){
       const bestByCell=new Array(detected.length).fill(-1);
       const bestByRot=new Array(detected.length).fill(0);
       const bestLoc=new Array(detected.length).fill(null);
-      const scales=[1.50,1.65,1.80];
+
       for(const deg of [0,90,180,270]){
-        const rotatedMask=rotateMat(mask,deg);
+        const raw=rotateMat(grayRoi,deg);
+        const rm=rotateMat(mask,deg);
         const rf=rotatedFlatness(baseFlat,deg);
-        // A flat edge is a strong indication of a puzzle border.  Reject only
-        // rotations that clearly violate the border requirement; interior edges
-        // remain unrestricted so ordinary pieces are still handled.
         const flat=[rf[0]>.62,rf[1]>.62,rf[2]>.62,rf[3]>.62];
-        for(const sc of scales){
-          let raw=rotateMat(grayRoi,deg),m=rotatedMask,scaled=null,sm=null;
-          try{
-            const nw=Math.max(24,Math.round(raw.cols*sc*refScale)),nh=Math.max(24,Math.round(raw.rows*sc*refScale));
-            if(nw>=refSmall.cols-4||nh>=refSmall.rows-4)continue;
-            scaled=new cv.Mat();sm=new cv.Mat();
+        try{
+          for(const sc of scales){
+            const nw=Math.max(24,Math.round(raw.cols*sc));
+            const nh=Math.max(24,Math.round(raw.rows*sc));
+            if(nw>=cellW-4||nh>=cellH-4)continue;
+            const scaled=new cv.Mat(),sm=new cv.Mat();
             cv.resize(raw,scaled,new cv.Size(nw,nh),0,0,cv.INTER_AREA);
-            cv.resize(m,sm,new cv.Size(nw,nh),0,0,cv.INTER_NEAREST);
-            // Erode the mask slightly so the score emphasizes artwork rather
-            // than the cut edge itself.
+            cv.resize(rm,sm,new cv.Size(nw,nh),0,0,cv.INTER_NEAREST);
             const ek=cv.Mat.ones(7,7,cv.CV_8U);cv.erode(sm,sm,ek);ek.delete();
-            if(cv.countNonZero(sm)<120)continue;
-            const res=new cv.Mat();
-            cv.matchTemplate(refSmall,scaled,res,cv.TM_CCORR_NORMED,sm);
-            // Keep several strong peaks. The final global assignment prevents
-            // multiple pieces from claiming the same cell.
-            for(let pass=0;pass<4;pass++){
-              let maxVal=-1,maxX=-1,maxY=-1;
-              for(let y=0;y<res.rows;y++){
-                const row=res.data32F.subarray(y*res.cols,(y+1)*res.cols);
-                for(let x=0;x<res.cols;x++){
-                  const v=row[x]; if(v>maxVal){maxVal=v;maxX=x;maxY=y;}
-                }
-              }
-              if(maxVal<0)break;
-              const cx=(maxX+nw/2)/refScale,cy=(maxY+nh/2)/refScale;
-              let cellR=Math.floor(cy/(refGray.rows/rows)),cellC=Math.floor(cx/(refGray.cols/cols));
-              cellR=Math.max(0,Math.min(rows-1,cellR));cellC=Math.max(0,Math.min(cols-1,cellC));
-              const cell=cellR*cols+cellC;
-              const expected=[cellR===0,cellC===cols-1,cellR===rows-1,cellC===0];
+            if(cv.countNonZero(sm)<120){scaled.delete();sm.delete();continue;}
+
+            for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+              const cell=r*cols+c;
+              const x0=Math.round(c*cellW),y0=Math.round(r*cellH);
+              const cw=Math.round((c+1)*cellW)-x0,ch=Math.round((r+1)*cellH)-y0;
+              if(nw>=cw-4||nh>=ch-4)continue;
+              const cellMat=refGray.roi(new cv.Rect(x0,y0,cw,ch));
+              const res=new cv.Mat();
+              cv.matchTemplate(cellMat,scaled,res,cv.TM_CCORR_NORMED,sm);
+              const mm=cv.minMaxLoc(res);
+              const expected=[r===0,c===cols-1,r===rows-1,c===0];
               let borderOK=true;
-              for(let s=0;s<4;s++){
-                if(flat[s] && !expected[s])borderOK=false;
-                if(expected[s] && rf[s]<.40)borderOK=false;
+              for(let side=0;side<4;side++){
+                if(flat[side]&&!expected[side])borderOK=false;
+                if(expected[side]&&rf[side]<.40)borderOK=false;
               }
-              const shape=gridShapeScore(rf,rows,cols,cellR,cellC);
-              const score=borderOK ? maxVal*(.94+.06*shape) : maxVal*.35;
-              if(score>bestByCell[cell]){bestByCell[cell]=score;bestByRot[cell]=deg;bestLoc[cell]={x:cx,y:cy,w:nw/refScale,h:nh/refScale};}
-              // suppress a neighborhood so the next peak is meaningfully different
-              const radX=Math.max(10,Math.round(nw*.55)),radY=Math.max(10,Math.round(nh*.55));
-              const x0=Math.max(0,maxX-radX),x1=Math.min(res.cols,maxX+radX),y0=Math.max(0,maxY-radY),y1=Math.min(res.rows,maxY+radY);
-              for(let yy=y0;yy<y1;yy++)for(let xx=x0;xx<x1;xx++)res.data32F[yy*res.cols+xx]=-1;
+              // Geometry is a modest tie-breaker; artwork remains dominant.
+              const shape=gridShapeScore(rf,rows,cols,r,c);
+              const score=borderOK ? mm.maxVal*(.96+.04*shape) : mm.maxVal*.25;
+              if(score>bestByCell[cell]){
+                bestByCell[cell]=score;
+                bestByRot[cell]=deg;
+                bestLoc[cell]={
+                  x:x0+mm.maxLoc.x+nw/2,
+                  y:y0+mm.maxLoc.y+nh/2,
+                  w:nw,h:nh
+                };
+              }
+              cellMat.delete();res.delete();
             }
-            res.delete();
-          }finally{[raw,scaled,sm].forEach(q=>{try{q&&q.delete()}catch(_){}})}
-        }
-        rotatedMask.delete();
+            scaled.delete();sm.delete();
+          }
+        }finally{raw.delete();rm.delete();}
         await new Promise(r=>setTimeout(r,0));
       }
-      scoreMat[i]=bestByCell;rotMat[i]=bestByRot;locMat[i]=bestLoc;flatMat[i]=baseFlat;
+      scoreMat[i]=bestByCell;rotMat[i]=bestByRot;locMat[i]=bestLoc;
       mask.delete();grayRoi.delete();
-      status('<b>4/4</b> Artwork search '+(i+1)+' of '+detected.length+'…');
+      status('<b>Fast artwork search</b> '+(i+1)+' of '+detected.length+'…');
       await new Promise(r=>setTimeout(r,0));
     }
-    // Global one-to-one assignment.  A piece gets a real location only when it
-    // has positive evidence for that cell.
+
     const assign=hungarianMax(scoreMat),out=[];
     for(let i=0;i<detected.length;i++){
       const cell=assign[i],r=Math.floor(cell/cols),c=cell%cols,score=scoreMat[i][cell];
       if(!isFinite(score)||score<=0||!locMat[i][cell]){
-        out.push({location:null,confidence:0,goodMatches:0,inliers:0,rotation:null,method:'NONE',warning:'No reliable artwork match.'});continue;
+        out.push({location:null,confidence:0,goodMatches:0,inliers:0,rotation:null,method:'NONE',warning:'No reliable artwork match.'});
+        continue;
       }
-      const sorted=scoreMat[i].filter(v=>isFinite(v)&&v>=0).sort((a,b)=>b-a),second=sorted.length>1?sorted[1]:0;
+      const sorted=scoreMat[i].filter(v=>isFinite(v)&&v>=0).sort((a,b)=>b-a);
+      const second=sorted.length>1?sorted[1]:0;
       const margin=Math.max(0,score-second);
-      // Do not manufacture a high confidence score just because the grid is full.
       const rawConf=45+score*50+Math.min(10,margin*35);
       const conf=Math.round(Math.max(58,Math.min(97,rawConf)));
       const p=locMat[i][cell];
-      out.push({location:{x:p.x/refGray.cols,y:p.y/refGray.rows,w:Math.min(1,p.w/refGray.cols),h:Math.min(1,p.h/refGray.rows)},confidence:conf,goodMatches:0,inliers:0,rotation:rotMat[i][cell],method:'ARTWORK',warning:margin<.025?'Close artwork match — verify the highlighted location.':'',grid:{row:r+1,col:c+1,score:Math.round(score*100),margin:Math.round(margin*100)}});
+      out.push({
+        location:{x:p.x/refGray.cols,y:p.y/refGray.rows,w:Math.min(1,p.w/refGray.cols),h:Math.min(1,p.h/refGray.rows)},
+        confidence:conf,goodMatches:0,inliers:0,rotation:rotMat[i][cell],method:'ARTWORK',
+        warning:margin<.025?'Close artwork match — verify the highlighted location.':'',
+        grid:{row:r+1,col:c+1,score:Math.round(score*100),margin:Math.round(margin*100)}
+      });
     }
     return {rows,cols,results:out};
-  }finally{refSmall.delete();}
+  }finally{}
 }
 
 async function templateLocate(refGray,pieceGray,rect){
