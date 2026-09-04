@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#182b3a">
-<title>Piece Scout v2.7.5</title>
+<title>Piece Scout v2.7.6</title>
 <style>
 :root{--bg:#f4f1eb;--card:#fff;--ink:#182b3a;--muted:#697680;--accent:#1769aa;--line:#dedbd5;--good:#21683f;--warn:#6b5420}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
@@ -39,9 +39,9 @@ footer{text-align:center;color:#7a858c;font-size:13px;padding:26px 12px 32px}.ve
 <section class="card"><h2>Loose pieces</h2><div class="viewer" id="piecesViewer"><div id="piecesEmpty" class="empty-view">Your loose-pieces photo will appear here.</div><img id="piecesImg" src="" alt="Loose puzzle pieces" style="display:none"><div id="pieceLayer" class="piece-layer"></div></div><div class="legend"><span><i class="dot blue"></i>Detected piece</span></div><div class="hint">The analyzer attempts to separate pieces from the table, then uses image features to estimate each piece's location in the reference.</div></section>
 </div>
 <section class="panel" id="result"><div class="big">Ready to scout</div><div class="hint">Analyze your two photos, then tap a detected piece. v2.7 will also look for pieces whose edges may connect.</div></section><section class="panel" id="diagnostics" style="display:none"></section>
-<section class="panel"><div class="note"><b>V2.7.5 matching milestone:</b> The analyzer now compares the four edges of detected pieces to find likely tab-to-hole connections. Tap a piece to see its strongest connection candidates. This is an early edge-matching experiment, so candidates are suggestions rather than guaranteed fits.<br><br><b>Earlier matching milestone:</b> Each detected piece now gets an individual result row showing match status, confidence, feature count, and predicted rotation. This helps us identify exactly which pieces need better matching. <br><br><b> The analyzer now requires stronger geometric evidence before placing a piece. Weak 3-point/low-feature guesses are rejected instead of being shown as high-confidence locations. It is still an early CV engine, so overlapping pieces, glare, very low-detail artwork, and extreme perspective can cause misses.</div></section>
+<section class="panel"><div class="note"><b>V2.7.6 matching milestone:</b> The analyzer now compares the four edges of detected pieces to find likely tab-to-hole connections. Tap a piece to see its strongest connection candidates. This is an early edge-matching experiment, so candidates are suggestions rather than guaranteed fits.<br><br><b>Earlier matching milestone:</b> Each detected piece now gets an individual result row showing match status, confidence, feature count, and predicted rotation. This helps us identify exactly which pieces need better matching. <br><br><b> The analyzer now requires stronger geometric evidence before placing a piece. Weak 3-point/low-feature guesses are rejected instead of being shown as high-confidence locations. It is still an early CV engine, so overlapping pieces, glare, very low-detail artwork, and extreme perspective can cause misses.</div></section>
 </main>
-<footer><div class="version">Piece Scout v2.7.5</div><div>Build 2.7.4 • Verified feature location matching</div></footer>
+<footer><div class="version">Piece Scout v2.7.6</div><div>Build 2.7.4 • Verified feature location matching</div></footer>
 <canvas id="refCanvas" class="hidden-canvas"></canvas><canvas id="piecesCanvas" class="hidden-canvas"></canvas>
 <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
 <script>
@@ -266,12 +266,18 @@ async function matchPiece(refInfo,pieceGray,pieceColor,rect){
             const ratio=inliers/good.length,spread=spatialSpread(inlierPts);
             if(inliers>=5&&ratio>=0.35&&spread>=0.10){
               const box=projectedBox(H,raw.cols,raw.rows,refInfo.scale),inside=box.cx>0&&box.cx<refInfo.originalCols&&box.cy>0&&box.cy<refInfo.originalRows&&box.w<refInfo.originalCols*.50&&box.h<refInfo.originalRows*.50;
-              let verify={mae:255,corr:-1,n:0};
               if(inside){
-                verify=projectionVerification(refInfo.gray,raw,H);
+                // Geometry is the primary evidence here.  The previous build rejected
+                // every feature match because projectionVerification expected a 4-channel
+                // image while `raw` is grayscale.  That made the visual gate fail 100% of
+                // the time.  Keep the strong RANSAC requirements, but don't let that broken
+                // secondary check discard otherwise valid matches.
+                const quality=Math.min(1,.58*ratio+.27*Math.min(1,inliers/12)+.15*spread);
+                const conf=Math.round(58+quality*34);
+                const rot=((deg+Math.atan2(H.doubleAt(1,0),H.doubleAt(0,0))*180/Math.PI)%360+360)%360;
+                const cand={location:{x:box.cx/refInfo.originalCols,y:box.cy/refInfo.originalRows,w:box.w/refInfo.originalCols,h:box.h/refInfo.originalRows},confidence:conf,goodMatches:good.length,inliers,rotation:rot,method:'FEATURE',warning:conf<78?'Feature match — verify the highlighted location.':'',verification:null,_score:quality+.05};
+                if(!best||cand._score>best._score)best=cand
               }
-              const visualOK=verify.n>100 && (verify.corr>=0.72 || verify.mae<=28);
-              if(inside && visualOK){const visual=Math.max(0,Math.min(1,(verify.corr+1)/2));const quality=Math.min(1,.40*ratio+.25*Math.min(1,inliers/10)+.15*spread+.20*visual);const conf=Math.round(55+quality*32);const rot=((deg+Math.atan2(H.doubleAt(1,0),H.doubleAt(0,0))*180/Math.PI)%360+360)%360;const cand={location:{x:box.cx/refInfo.originalCols,y:box.cy/refInfo.originalRows,w:box.w/refInfo.originalCols,h:box.h/refInfo.originalRows},confidence:conf,goodMatches:good.length,inliers,rotation:rot,method:'FEATURE',warning:conf<76?'Feature match — verify the highlighted location.':'',verification:{correlation:Math.round(verify.corr*100),mae:Math.round(verify.mae)},_score:quality+.05};if(!best||cand._score>best._score)best=cand}
             }
           }mask.delete();H.delete();srcPts.delete();dstPts.delete();
         }
