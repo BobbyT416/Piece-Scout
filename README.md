@@ -1,8 +1,8 @@
-# Piece Scout v2.7
+# Piece Scout v2.7.1
 
 GitHub Pages-ready prototype for Piece Scout.
 
-## v2.7 changes
+## v2.7.1 changes
 - Clean startup; no automatic puzzle load.
 - Larger phone/tablet photo buttons.
 - Faster mobile analysis: reference features are computed once instead of once per piece.

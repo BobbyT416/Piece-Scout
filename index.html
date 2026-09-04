@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#182b3a">
-<title>Piece Scout v2.7</title>
+<title>Piece Scout v2.7.1</title>
 <style>
 :root{--bg:#f4f1eb;--card:#fff;--ink:#182b3a;--muted:#697680;--accent:#1769aa;--line:#dedbd5;--good:#21683f;--warn:#6b5420}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
@@ -41,7 +41,7 @@ footer{text-align:center;color:#7a858c;font-size:13px;padding:26px 12px 32px}.ve
 <section class="panel" id="result"><div class="big">Ready to scout</div><div class="hint">Analyze your two photos, then tap a detected piece. v2.7 will also look for pieces whose edges may connect.</div></section><section class="panel" id="diagnostics" style="display:none"></section>
 <section class="panel"><div class="note"><b>V2.7 connection milestone:</b> The analyzer now compares the four edges of detected pieces to find likely tab-to-hole connections. Tap a piece to see its strongest connection candidates. This is an early edge-matching experiment, so candidates are suggestions rather than guaranteed fits.<br><br><b>Earlier matching milestone:</b> Each detected piece now gets an individual result row showing match status, confidence, feature count, and predicted rotation. This helps us identify exactly which pieces need better matching. <br><br><b> The analyzer now adds multi-scale piece upscaling, rotated feature matching, color/edge similarity, and a fallback matcher for pieces that have too few keypoints for SIFT/ORB. It also reports whether the failure happened during piece detection or image matching. It is still an early CV engine, so overlapping pieces, glare, very low-detail artwork, and extreme perspective can cause misses.</div></section>
 </main>
-<footer><div class="version">Piece Scout v2.7</div><div>Build 2.7 • Edge connection scouting • Faster analysis</div></footer>
+<footer><div class="version">Piece Scout v2.7.1</div><div>Build 2.7.1 • Image viewer fix • Edge connection scouting</div></footer>
 <canvas id="refCanvas" class="hidden-canvas"></canvas><canvas id="piecesCanvas" class="hidden-canvas"></canvas>
 <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
 <script>
@@ -69,6 +69,8 @@ async function loadAurora(){
   try{
     status('<b>Loading Aurora 12 benchmark…</b> Downloading the matched reference and 12-piece test image.');
     await Promise.all([loadRemoteImage(AURORA_REF,refImg),loadRemoteImage(AURORA_PIECES,piecesImg)]);
+    $('refEmpty').style.display='none'; $('piecesEmpty').style.display='none';
+    refImg.style.display='block'; piecesImg.style.display='block';
     mode='real'; $('refUpload').value=''; $('piecesUpload').value='';
     status('<b>Aurora 12 loaded.</b> These images come from the same public computer-vision puzzle dataset. Choose <b>Analyze puzzle</b>.');
     $('result').innerHTML='<div class="big">Aurora 12 benchmark ready</div><div class="hint">This is a controlled test: the reference and scrambled pieces are from the same puzzle dataset.</div>';
@@ -97,7 +99,7 @@ function selectResult(i){
  $('result').innerHTML=html;
 }
 function addPieceButton(r,i,totalW,totalH){const b=document.createElement('button');b.type='button';b.className='piece-hit';b.setAttribute('aria-label','Detected puzzle piece '+(i+1));b.style.left=(r.rect.x/totalW*100)+'%';b.style.top=(r.rect.y/totalH*100)+'%';b.style.width=(r.rect.width/totalW*100)+'%';b.style.height=(r.rect.height/totalH*100)+'%';b.addEventListener('click',()=>selectResult(i));b.addEventListener('pointerdown',()=>selectResult(i));r.button=b;layer.appendChild(b)}
-function loadImageFile(file,img){return new Promise((resolve,reject)=>{const u=URL.createObjectURL(file);objectUrls.push(u);img.onload=()=>resolve();img.onerror=reject;img.src=u})}
+function loadImageFile(file,img){return new Promise((resolve,reject)=>{const u=URL.createObjectURL(file);objectUrls.push(u);img.onload=()=>{if(img===refImg)$('refEmpty').style.display='none';if(img===piecesImg)$('piecesEmpty').style.display='none';img.style.display='block';resolve()};img.onerror=reject;img.src=u})}
 function matFromImage(img,canvasId){const c=$(canvasId),ctx=c.getContext('2d');c.width=img.naturalWidth;c.height=img.naturalHeight;ctx.drawImage(img,0,0);return cv.imread(c)}
 function medianBorder(mat){let vals=[];const step=Math.max(1,Math.floor(Math.min(mat.rows,mat.cols)/200));for(let y=0;y<mat.rows;y+=step){for(let x=0;x<mat.cols;x+=step){if(y<mat.rows*.05||y>mat.rows*.95||x<mat.cols*.05||x>mat.cols*.95){const p=mat.ucharPtr(y,x);vals.push([p[0],p[1],p[2]])}}}if(!vals.length)return [200,200,200];const m=a=>{a.sort((x,y)=>x-y);return a[Math.floor(a.length/2)]};return [m(vals.map(v=>v[0])),m(vals.map(v=>v[1])),m(vals.map(v=>v[2]))]}
 function detectPieces(src){
@@ -132,9 +134,9 @@ function edgeColorScore(a,b,sideA,sideB){
 }
 function reverseAbsDifference(a,b){let sum=0,n=Math.min(a.length,b.length);for(let i=0;i<n;i++){sum+=Math.abs(a[i]+b[n-1-i]);}return 1-clamp01(sum/n/.22)}
 function sameEdgePenalty(a,b){const ta=edgeType(a),tb=edgeType(b);if(ta==='flat'&&tb==='flat')return .35;if(ta===tb&&ta!=='flat')return .15;return 0}
-function buildPieceEdgeInfo(src,rect){
+function buildPieceEdgeInfo(src,rect,bg){
  const pad=1,x=Math.max(0,rect.x-pad),y=Math.max(0,rect.y-pad),w=Math.min(src.cols-x,rect.width+pad*2),h=Math.min(src.rows-y,rect.height+pad*2);
- const roi=src.roi(new cv.Rect(x,y,w,h));const bg=medianBorder(roi);const mask=new cv.Mat(roi.rows,roi.cols,cv.CV_8UC1);const data=roi.data,md=mask.data,thr=32;
+ const roi=src.roi(new cv.Rect(x,y,w,h));const mask=new cv.Mat(roi.rows,roi.cols,cv.CV_8UC1);const data=roi.data,md=mask.data,thr=32;
  for(let i=0,j=0;i<data.length;i+=4,j++){const db=data[i]-bg[0],dg=data[i+1]-bg[1],dr=data[i+2]-bg[2];md[j]=(Math.sqrt(db*db+dg*dg+dr*dr)>thr)?255:0}
  const k=cv.Mat.ones(3,3,cv.CV_8U);cv.morphologyEx(mask,mask,cv.MORPH_CLOSE,k);k.delete();
  const edges=[];for(let s=0;s<4;s++)edges.push(sampleSide(mask,s));
@@ -272,7 +274,8 @@ async function analyze(){
     status('<b>2/4</b> Detecting individual pieces…');await new Promise(r=>setTimeout(r,20));
     const detected=detectPieces(pieces).slice(0,80);
     status('<b>2/4</b> Describing piece edges…');await new Promise(r=>setTimeout(r,20));
-    detected.forEach((d,idx)=>{d.edgeInfo=buildPieceEdgeInfo(pieces,d.rect);});
+    const pieceBg=medianBorder(pieces);
+    detected.forEach((d,idx)=>{d.edgeInfo=buildPieceEdgeInfo(pieces,d.rect,pieceBg);});
     if(!detected.length){status('I could not isolate any pieces. Try a photo with the pieces separated on a plain, contrasting table.');ref.delete();pieces.delete();btn.disabled=false;return}
     status('<b>3/4</b> Preparing the reference image…');await new Promise(r=>setTimeout(r,20));
     let refGray=new cv.Mat();cv.cvtColor(ref,refGray,cv.COLOR_RGBA2GRAY);
@@ -299,7 +302,7 @@ function pieceGrayMat(pieces){if(!pieceGrayMatCache){pieceGrayMatCache=new cv.Ma
 $('analyzeBtn').addEventListener('click',analyze);
 $('auroraBtn').addEventListener('click',loadAurora);
 $('sampleBtn').addEventListener('click',()=>{setImage(refImg,$('refEmpty'),'sample_reference.png','Completed puzzle reference');setImage(piecesImg,$('piecesEmpty'),'sample_pieces.png','Loose puzzle pieces');mode='sample';$('refFileName').textContent='Sample reference';$('piecesFileName').textContent='Sample pieces';resetTarget();layer.innerHTML='';results=[];clearPieceSelection();for(let i=0;i<80;i++){const r=Math.floor(i/10),c=i%10;results.push({rect:{x:c*10,y:r*12.5,width:10,height:12.5},location:{x:c*.1,y:r*.125,w:.1,h:.125},confidence:96,goodMatches:20,rotation:0});addPieceButton(results[i],i,100,100)}status('<b>Sample loaded.</b> Tap any piece. This sample retains its known mapping for interface testing.');$('result').innerHTML='<div class="big">Ready to scout</div><div class="hint">Tap any sample piece above.</div>'});
-$('clearBtn').addEventListener('click',()=>{objectUrls.forEach(u=>URL.revokeObjectURL(u));objectUrls=[];refImg.removeAttribute('src');piecesImg.removeAttribute('src');layer.innerHTML='';results=[];resetTarget();$('result').innerHTML='<div class="big">Ready</div><div class="hint">Load two pictures to begin.</div>';status('Load both images, then choose <b>Analyze puzzle</b>.')});
+$('clearBtn').addEventListener('click',()=>{objectUrls.forEach(u=>URL.revokeObjectURL(u));objectUrls=[];refImg.removeAttribute('src');piecesImg.removeAttribute('src');refImg.style.display='none';piecesImg.style.display='none';$('refEmpty').style.display='flex';$('piecesEmpty').style.display='flex';$('refFileName').textContent='No photo selected';$('piecesFileName').textContent='No photo selected';$('refUpload').value='';$('piecesUpload').value='';layer.innerHTML='';results=[];resetTarget();$('diagnostics').style.display='none';$('diagnostics').innerHTML='';$('result').innerHTML='<div class="big">Ready</div><div class="hint">Load two pictures to begin.</div>';status('Load both images, then choose <b>Analyze puzzle</b>.')});
 $('refUpload').addEventListener('change',async e=>{const f=e.target.files?.[0];if(!f)return;await loadImageFile(f,refImg);mode='real';resetTarget();status('Reference photo loaded. Now load the loose-pieces photo.');});
 $('piecesUpload').addEventListener('change',async e=>{const f=e.target.files?.[0];if(!f)return;await loadImageFile(f,piecesImg);mode='real';resetTarget();layer.innerHTML='';results=[];status('Loose-pieces photo loaded. Choose <b>Analyze puzzle</b> when both photos are ready.');});
 </script>
