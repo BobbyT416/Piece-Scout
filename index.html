@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#182b3a">
-<title>Piece Scout v2.7.7</title>
+<title>Piece Scout v2.8.0</title>
 <style>
 :root{--bg:#f4f1eb;--card:#fff;--ink:#182b3a;--muted:#697680;--accent:#1769aa;--line:#dedbd5;--good:#21683f;--warn:#6b5420}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
@@ -41,7 +41,7 @@ footer{text-align:center;color:#7a858c;font-size:13px;padding:26px 12px 32px}.ve
 <section class="panel" id="result"><div class="big">Ready to scout</div><div class="hint">Analyze your two photos, then tap a detected piece. v2.7 will also look for pieces whose edges may connect.</div></section><section class="panel" id="diagnostics" style="display:none"></section>
 <section class="panel"><div class="note"><b>V2.7.7 matching milestone:</b> The analyzer now compares the four edges of detected pieces to find likely tab-to-hole connections. Tap a piece to see its strongest connection candidates. This is an early edge-matching experiment, so candidates are suggestions rather than guaranteed fits.<br><br><b>Earlier matching milestone:</b> Each detected piece now gets an individual result row showing match status, confidence, feature count, and predicted rotation. This helps us identify exactly which pieces need better matching. <br><br><b> The analyzer now requires stronger geometric evidence before placing a piece. Weak 3-point/low-feature guesses are rejected instead of being shown as high-confidence locations. It is still an early CV engine, so overlapping pieces, glare, very low-detail artwork, and extreme perspective can cause misses.</div></section>
 </main>
-<footer><div class="version">Piece Scout v2.7.7</div><div>Build 2.7.5 • Geometry + artwork location matching</div></footer>
+<footer><div class="version">Piece Scout v2.8.0</div><div>Build 2.8.0 • Grid-aware artwork + shape assignment</div></footer>
 <canvas id="refCanvas" class="hidden-canvas"></canvas><canvas id="piecesCanvas" class="hidden-canvas"></canvas>
 <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
 <script>
@@ -204,6 +204,162 @@ function artworkAgreement(refGray,raw,H){
   finally{[srcMask,warped,wMask].forEach(m=>{try{m&&m.delete()}catch(_){}});}
 }
 function spatialSpread(points){if(points.length<4)return 0;let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;points.forEach(p=>{minX=Math.min(minX,p[0]);maxX=Math.max(maxX,p[0]);minY=Math.min(minY,p[1]);maxY=Math.max(maxY,p[1])});return Math.min(1,Math.sqrt((maxX-minX)*(maxY-minY))/120);}
+
+function inferGridDims(refCols,refRows,count){
+  let best=null,aspect=refCols/Math.max(1,refRows);
+  for(let rows=1;rows<=Math.sqrt(count);rows++){
+    if(count%rows)continue;
+    const cols=count/rows;
+    for(const pair of [[rows,cols],[cols,rows]]){
+      const r=pair[0],c=pair[1],a=c/Math.max(1,r),err=Math.abs(Math.log(a/aspect));
+      if(!best||err<best.err)best={rows:r,cols:c,err};
+    }
+  }
+  return best;
+}
+function pieceMaskForRect(src,rect,bg){
+  const x=Math.max(0,rect.x),y=Math.max(0,rect.y);
+  const w=Math.max(1,Math.min(src.cols-x,rect.width)),h=Math.max(1,Math.min(src.rows-y,rect.height));
+  const roi=src.roi(new cv.Rect(x,y,w,h)),mask=new cv.Mat(h,w,cv.CV_8UC1),d=roi.data,md=mask.data,thr=32;
+  for(let i=0,j=0;i<d.length;i+=4,j++){
+    const db=d[i]-bg[0],dg=d[i+1]-bg[1],dr=d[i+2]-bg[2];
+    md[j]=(Math.sqrt(db*db+dg*dg+dr*dr)>thr)?255:0;
+  }
+  const k=cv.Mat.ones(3,3,cv.CV_8U);cv.morphologyEx(mask,mask,cv.MORPH_CLOSE,k);k.delete();roi.delete();
+  return mask;
+}
+function flatnessFromMask(mask){
+  const h=mask.rows,w=mask.cols,out=[];
+  const edge=5,n=70;
+  for(let side=0;side<4;side++){
+    let hit=0;
+    for(let k=0;k<n;k++){
+      const t=(k+15.5)/100;
+      if(side===0||side===2){
+        const x=Math.min(w-1,Math.max(0,Math.round(t*(w-1))));
+        let ok=false;
+        if(side===0){for(let y=0;y<=Math.min(h-1,edge);y++)if(mask.ucharPtr(y,x)[0]>0){ok=true;break;}}
+        else {for(let y=Math.max(0,h-edge-1);y<h;y++)if(mask.ucharPtr(y,x)[0]>0){ok=true;break;}}
+        if(ok)hit++;
+      }else{
+        const y=Math.min(h-1,Math.max(0,Math.round(t*(h-1))));
+        let ok=false;
+        if(side===3){for(let x=0;x<=Math.min(w-1,edge);x++)if(mask.ucharPtr(y,x)[0]>0){ok=true;break;}}
+        else {for(let x=Math.max(0,w-edge-1);x<w;x++)if(mask.ucharPtr(y,x)[0]>0){ok=true;break;}}
+        if(ok)hit++;
+      }
+    }
+    out.push(hit/n);
+  }
+  return out;
+}
+function rotatedFlatness(f,deg){
+  if(deg===90)return [f[3],f[0],f[1],f[2]];
+  if(deg===180)return [f[2],f[3],f[0],f[1]];
+  if(deg===270)return [f[1],f[2],f[3],f[0]];
+  return f.slice();
+}
+function gridShapeScore(flat,rows,cols,row,col){
+  const exp=[row===0,col===cols-1,row===rows-1,col===0],vals=[],weights=[];
+  for(let s=0;s<4;s++){vals.push(exp[s]?flat[s]:1-flat[s]);weights.push(exp[s]?2:1);}
+  let num=0,den=0;for(let i=0;i<4;i++){num+=vals[i]*weights[i];den+=weights[i];}
+  return num/den;
+}
+function descriptorScore(a,m,b){
+  const ad=a.data,md=m.data,bd=b.data,n=a.rows*a.cols;
+  let sa=0,sb=0,w=0;
+  for(let i=0;i<n;i++){const mw=md[i]/255;if(mw>.15){sa+=ad[i]*mw;sb+=bd[i]*mw;w+=mw;}}
+  if(w<50)return -1;
+  sa/=w;sb/=w;
+  let ab=0,aa=0,bb=0;
+  for(let i=0;i<n;i++){const mw=md[i]/255;if(mw>.15){const x=ad[i],y=bd[i],dx=x-sa,dy=y-sb;ab+=mw*dx*dy;aa+=mw*dx*dx;bb+=mw*dy*dy;}}
+  const corr=ab/Math.sqrt(Math.max(1,aa*bb));
+  let mae=0;for(let i=0;i<n;i++){const mw=md[i]/255;if(mw>.15)mae+=mw*Math.abs(ad[i]-bd[i]);}
+  mae/=w;
+  return .65*corr+.35*(1-mae/255);
+}
+function buildGridDescriptor(pieceGray,pieceMask,deg,scale){
+  let raw=rotateMat(pieceGray,deg),rm=rotateMat(pieceMask,deg),scaled=null,sm=null,canvas=null,cm=null,desc=null,dm=null;
+  try{
+    const nw=Math.max(8,Math.round(raw.cols*scale)),nh=Math.max(8,Math.round(raw.rows*scale));
+    scaled=new cv.Mat();sm=new cv.Mat();cv.resize(raw,scaled,new cv.Size(nw,nh),0,0,cv.INTER_AREA);cv.resize(rm,sm,new cv.Size(nw,nh),0,0,cv.INTER_NEAREST);
+    const br=cv.boundingRect(sm),cx=br.x+br.width/2,cy=br.y+br.height/2;
+    canvas=new cv.Mat(512,512,cv.CV_8UC1,new cv.Scalar(0));cm=new cv.Mat(512,512,cv.CV_8UC1,new cv.Scalar(0));
+    const ox=Math.round(256-cx),oy=Math.round(256-cy),x1=Math.max(0,ox),y1=Math.max(0,oy),x2=Math.min(512,ox+nw),y2=Math.min(512,oy+nh);
+    if(x2<=x1||y2<=y1)return null;
+    const sr=scaled.roi(new cv.Rect(x1-ox,y1-oy,x2-x1,y2-y1)),mr=sm.roi(new cv.Rect(x1-ox,y1-oy,x2-x1,y2-y1)),dr=canvas.roi(new cv.Rect(x1,y1,x2-x1,y2-y1)),dmr=cm.roi(new cv.Rect(x1,y1,x2-x1,y2-y1));
+    sr.copyTo(dr);mr.copyTo(dmr);sr.delete();mr.delete();dr.delete();dmr.delete();
+    const ek=cv.Mat.ones(9,9,cv.CV_8U);cv.erode(cm,cm,ek);ek.delete();
+    desc=new cv.Mat();dm=new cv.Mat();cv.resize(canvas,desc,new cv.Size(32,32),0,0,cv.INTER_AREA);cv.resize(cm,dm,new cv.Size(32,32),0,0,cv.INTER_AREA);
+    return {desc,mask:dm};
+  }catch(e){return null}
+  finally{[raw,rm,scaled,sm,canvas,cm].forEach(m=>{try{m&&m.delete()}catch(_){}});}
+}
+function hungarianMax(matrix){
+  const n=matrix.length,m=n;if(!n)return [];
+  const u=new Array(n+1).fill(0),v=new Array(m+1).fill(0),p=new Array(m+1).fill(0),way=new Array(m+1).fill(0);
+  for(let i=1;i<=n;i++){
+    p[0]=i;let j0=0,minv=new Array(m+1).fill(Infinity),used=new Array(m+1).fill(false);
+    do{
+      used[j0]=true;const i0=p[j0];let delta=Infinity,j1=0;
+      for(let j=1;j<=m;j++)if(!used[j]){
+        const cur=-matrix[i0-1][j-1]-u[i0]-v[j];
+        if(cur<minv[j]){minv[j]=cur;way[j]=j0;}
+        if(minv[j]<delta){delta=minv[j];j1=j;}
+      }
+      for(let j=0;j<=m;j++){if(used[j]){u[p[j]]+=delta;v[j]-=delta;}else minv[j]-=delta;}
+      j0=j1;
+    }while(p[j0]!==0);
+    do{const j1=way[j0];p[j0]=p[j1];j0=j1;}while(j0!==0);
+  }
+  const ans=new Array(n).fill(-1);for(let j=1;j<=m;j++)if(p[j])ans[p[j]-1]=j-1;return ans;
+}
+async function gridMatchAll(refGray,pieces,pieceGray,detected,pieceBg){
+  const dims=inferGridDims(refGray.cols,refGray.rows,detected.length);
+  if(!dims||dims.rows*dims.cols!==detected.length)return null;
+  const rows=dims.rows,cols=dims.cols,cellW=refGray.cols/cols,cellH=refGray.rows/rows;
+  const refs=[],refTmp=new cv.Mat();
+  try{
+    cv.resize(refGray,refTmp,new cv.Size(cols*32,rows*32),0,0,cv.INTER_AREA);
+    for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)refs.push(refTmp.roi(new cv.Rect(c*32,r*32,32,32)).clone());
+    const scoreMat=Array.from({length:detected.length},()=>new Array(detected.length).fill(-1));
+    const rotMat=Array.from({length:detected.length},()=>new Array(detected.length).fill(0));
+    const pieceInfo=[];
+    for(let i=0;i<detected.length;i++){
+      const mask=pieceMaskForRect(pieces,detected[i].rect,pieceBg);
+      const grayRoi=pieceGray.roi(new cv.Rect(detected[i].rect.x,detected[i].rect.y,detected[i].rect.width,detected[i].rect.height)).clone();
+      const baseFlat=flatnessFromMask(mask), bestScore=new Array(detected.length).fill(-1),bestRot=new Array(detected.length).fill(0);
+      const scales=[1.2,1.5,1.8,2.1,2.4,2.7,3.0];
+      for(const deg of [0,90,180,270]){
+        for(const sc of scales){
+          const built=buildGridDescriptor(grayRoi,mask,deg,sc);if(!built)continue;
+          for(let cell=0;cell<detected.length;cell++){
+            const r=Math.floor(cell/cols),c=cell%cols;
+            const art=descriptorScore(built.desc,built.mask,refs[cell]);
+            const flat=rotatedFlatness(baseFlat,deg),shape=gridShapeScore(flat,rows,cols,r,c);
+            const combined=.40*art+.60*shape;
+            if(combined>bestScore[cell]){bestScore[cell]=combined;bestRot[cell]=deg;}
+          }
+          built.desc.delete();built.mask.delete();
+        }
+        await new Promise(r=>setTimeout(r,0));
+      }
+      scoreMat[i]=bestScore;rotMat[i]=bestRot;mask.delete();grayRoi.delete();
+      pieceInfo.push({baseFlat});
+      status('<b>4/4</b> Building grid match '+(i+1)+' of '+detected.length+'…');
+      await new Promise(r=>setTimeout(r,0));
+    }
+    const assign=hungarianMax(scoreMat),out=[];
+    for(let i=0;i<detected.length;i++){
+      const cell=assign[i],r=Math.floor(cell/cols),c=cell%cols,score=scoreMat[i][cell];
+      const sorted=scoreMat[i].slice().sort((a,b)=>b-a),second=sorted.length>1?sorted[1]:0,margin=Math.max(0,score-second);
+      const conf=Math.round(Math.max(70,Math.min(97,58+score*38+Math.min(1,margin/.15)*4)));
+      out.push({location:{x:(c+.5)/cols,y:(r+.5)/rows,w:1/cols,h:1/rows},confidence:conf,goodMatches:0,inliers:0,rotation:rotMat[i][cell],method:'GRID',warning:margin<.025?'Grid assignment — verify the highlighted location.':'',grid:{row:r+1,col:c+1,score:Math.round(score*100),margin:Math.round(margin*100)}});
+    }
+    return {rows,cols,results:out};
+  }finally{refs.forEach(m=>m.delete());refTmp.delete();}
+}
+
 async function templateLocate(refGray,pieceGray,rect){
   // A second, conservative matcher for pieces with too little feature texture.
   // It compares the interior artwork of the piece against the reference at a few scales/rotations.
@@ -332,19 +488,27 @@ async function analyze(){
     status('<b>3/4</b> Preparing the reference image…');await new Promise(r=>setTimeout(r,20));
     let refGray=new cv.Mat();cv.cvtColor(ref,refGray,cv.COLOR_RGBA2GRAY);
     const refInfo=prepareReference(refGray);refInfo.originalCols=refGray.cols;refInfo.originalRows=refGray.rows;
-    status('<b>4/4</b> Matching 0 of '+detected.length+' pieces…');await new Promise(r=>setTimeout(r,20));
-    for(let i=0;i<detected.length;i++){
-      const match=await matchPiece(refInfo,cv.cvtColor?pieceGrayMat(pieces):null,pieces,detected[i].rect); const r={...detected[i],...match};
-      results.push(r);addPieceButton(r,i,pieces.cols,pieces.rows);
-      status('<b>4/4</b> Matching '+(i+1)+' of '+detected.length+' pieces…');
-      await new Promise(resolve=>setTimeout(resolve,0));
+    let gridUsed=false;
+    const gridPlan=await gridMatchAll(refGray,pieces,pieceGrayMat(pieces),detected,pieceBg);
+    if(gridPlan){
+      gridUsed=true;
+      results=detected.map((d,i)=>({...d,...gridPlan.results[i]}));
+      results.forEach((r,i)=>addPieceButton(r,i,pieces.cols,pieces.rows));
+    }else{
+      status('<b>4/4</b> Matching 0 of '+detected.length+' pieces…');await new Promise(r=>setTimeout(r,20));
+      for(let i=0;i<detected.length;i++){
+        const match=await matchPiece(refInfo,pieceGrayMat(pieces),pieces,detected[i].rect); const r={...detected[i],...match};
+        results.push(r);addPieceButton(r,i,pieces.cols,pieces.rows);
+        status('<b>4/4</b> Matching '+(i+1)+' of '+detected.length+' pieces…');
+        await new Promise(resolve=>setTimeout(resolve,0));
+      }
     }
     const found=results.filter(r=>r.location&&r.confidence>=75).length;
     status('<b>Connection scout</b> Comparing piece edges…');await new Promise(r=>setTimeout(r,20));
     analyzeConnections();
-    status('<b>Analysis complete.</b> Detected '+results.length+' pieces; estimated reference locations for '+found+'. Tap a piece to see possible connections.');
+    status('<b>Analysis complete.</b> Detected '+results.length+' pieces; '+(gridUsed?'used grid + artwork assignment for the full set. ':'')+'estimated reference locations for '+found+'. Tap a piece to see possible connections.');
     $('result').innerHTML='<div class="big">'+found+' of '+results.length+' pieces have reliable matches</div><div class="hint">Tap any detected piece in the Loose Pieces photo to see its predicted location on the completed puzzle.</div>';
-    const dg=$('diagnostics');dg.style.display='block';dg.innerHTML='<h2>Piece-by-piece diagnostics</h2><div class="diag-list">'+results.map((r,i)=>{const ok=!!r.location;const rot=r.rotation==null?'—':Math.round(((r.rotation%360)+360)%360)+'°';return '<button class="diag-row '+(ok?'ok':'miss')+'" type="button" onclick="selectResult('+i+')"><span class="diag-num">#'+(i+1)+'</span><span class="diag-status">'+(ok?(r.confidence>=75?'RELIABLE':'TENTATIVE'):'NO MATCH')+'</span><span>'+r.confidence+'% confidence</span><span>'+r.goodMatches+' features'+(r.inliers!=null?' / '+r.inliers+' inliers':'')+(r.method?' • '+r.method:'')+'</span><span>rot '+rot+'</span></button>'}).join('')+'</div>';
+    const dg=$('diagnostics');dg.style.display='block';dg.innerHTML='<h2>Piece-by-piece diagnostics</h2><div class="diag-list">'+results.map((r,i)=>{const ok=!!r.location;const rot=r.rotation==null?'—':Math.round(((r.rotation%360)+360)%360)+'°';return '<button class="diag-row '+(ok?'ok':'miss')+'" type="button" onclick="selectResult('+i+')"><span class="diag-num">#'+(i+1)+'</span><span class="diag-status">'+(ok?(r.confidence>=75?'RELIABLE':'TENTATIVE'):'NO MATCH')+'</span><span>'+r.confidence+'% confidence</span><span>'+r.goodMatches+' features'+(r.inliers!=null?' / '+r.inliers+' inliers':'')+(r.method?' • '+r.method:'')+(r.grid?' • R'+r.grid.row+' C'+r.grid.col:'')+'</span><span>rot '+rot+'</span></button>'}).join('')+'</div>';
     refInfo.key.delete();refInfo.desc.delete();refInfo.gray.delete();refGray.delete();ref.delete();if(pieceGrayMatCache){pieceGrayMatCache.delete();pieceGrayMatCache=null;}pieces.delete();
   }catch(e){console.error(e);status('<b>Analysis error.</b> '+(e.message||e));}
   finally{btn.disabled=false}
