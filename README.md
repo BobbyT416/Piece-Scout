@@ -1,11 +1,20 @@
-# Piece Scout v2.3
+# Piece Scout v2.7
 
-GitHub Pages prototype for Piece Scout. v2.3 adds piece-by-piece diagnostic results to the real computer-vision matcher.
+GitHub Pages-ready prototype for Piece Scout.
+
+## v2.7 changes
+- Clean startup; no automatic puzzle load.
+- Larger phone/tablet photo buttons.
+- Faster mobile analysis: reference features are computed once instead of once per piece.
+- Caps working image dimensions during feature extraction to reduce browser memory/CPU pressure.
+- Incremental progress updates while pieces are matched.
+- Aurora 12 benchmark and sample test remain available.
+- Visible version number in the footer.
 
 ## Test
-1. Open the site.
+1. Open the app.
 2. Choose **Load Aurora 12 benchmark**.
 3. Choose **Analyze puzzle**.
-4. Review the piece-by-piece diagnostics and tap a row to inspect its predicted location.
+4. Watch the progress message while it processes each piece.
 
-The built-in sample remains a known-mapping interface test. The Aurora benchmark is a real matched puzzle/reference dataset.
+This is still an experimental computer-vision prototype.

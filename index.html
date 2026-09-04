@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#182b3a">
-<title>Piece Scout v2.5</title>
+<title>Piece Scout v2.7</title>
 <style>
 :root{--bg:#f4f1eb;--card:#fff;--ink:#182b3a;--muted:#697680;--accent:#1769aa;--line:#dedbd5;--good:#21683f;--warn:#6b5420}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
@@ -17,7 +17,7 @@ main{max-width:1180px;margin:auto;padding:16px}.steps{display:flex;gap:8px;overf
 .status{margin-top:10px;padding:10px 12px;background:#f6f8f9;border-radius:10px;color:#53616a;font-size:14px}.note{margin-top:12px;padding:12px;border-radius:10px;background:#fff7df;color:var(--warn);font-size:13px}.ok{background:#edf8f1;color:var(--good)}
 .legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--muted)}.dot{width:10px;height:10px;border-radius:3px;display:inline-block;vertical-align:-1px;margin-right:4px}.blue{background:#1769aa33;border:1px solid #1769aa}.red{background:#d3303314;border:1px solid #d33}
 footer{text-align:center;color:#7a858c;font-size:13px;padding:26px 12px 32px}.version{font-weight:750;color:#58656d}
-.hidden-canvas{display:none}@media(max-width:760px){.grid,.uploads{grid-template-columns:1fr}main{padding:12px}.brand{font-size:25px}}
+.connection-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.connection-card{border:1px solid var(--line);border-radius:12px;padding:10px;background:#fafbfc}.connection-card strong{display:block}.connection-score{font-weight:800;margin-top:4px}.edge-pill{display:inline-block;margin-top:5px;padding:3px 7px;border-radius:999px;background:#eef4f7;font-size:12px}.candidate-hit{border:3px solid #7b4bb3!important;background:#7b4bb322!important}.selected-edge{border:4px solid #1769aa!important;background:#1769aa22!important}@media(max-width:760px){.connection-grid{grid-template-columns:1fr}}.hidden-canvas{display:none}@media(max-width:760px){.grid,.uploads{grid-template-columns:1fr}main{padding:12px}.brand{font-size:25px}}
 .diag-list{display:grid;gap:7px}.diag-row{width:100%;display:grid;grid-template-columns:55px 90px 1fr 1fr 80px;text-align:left;gap:8px;align-items:center;border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 10px;color:var(--ink);cursor:pointer}.diag-row.ok{border-left:5px solid var(--good)}.diag-row.miss{border-left:5px solid #a26a21}.diag-status{font-weight:800}.diag-num{font-weight:800}@media(max-width:760px){.diag-row{grid-template-columns:45px 80px 1fr 1fr 65px;font-size:12px;padding:8px 6px}}
 </style>
 </head>
@@ -38,10 +38,10 @@ footer{text-align:center;color:#7a858c;font-size:13px;padding:26px 12px 32px}.ve
 <section class="card"><h2>Completed puzzle</h2><div class="viewer" id="refViewer"><div id="refEmpty" class="empty-view">Your completed puzzle photo will appear here.</div><img id="refImg" src="" alt="Completed puzzle reference" style="display:none"><div id="target" class="target"></div></div><div class="legend"><span><i class="dot red"></i>Predicted location</span></div><div class="hint">For the first real test, use a clear, mostly straight-on photo of the completed puzzle image. A box photo may work if the puzzle artwork is clearly visible.</div></section>
 <section class="card"><h2>Loose pieces</h2><div class="viewer" id="piecesViewer"><div id="piecesEmpty" class="empty-view">Your loose-pieces photo will appear here.</div><img id="piecesImg" src="" alt="Loose puzzle pieces" style="display:none"><div id="pieceLayer" class="piece-layer"></div></div><div class="legend"><span><i class="dot blue"></i>Detected piece</span></div><div class="hint">The analyzer attempts to separate pieces from the table, then uses image features to estimate each piece's location in the reference.</div></section>
 </div>
-<section class="panel" id="result"><div class="big">Ready to scout</div><div class="hint">Analyze your two photos, then tap a detected piece.</div></section><section class="panel" id="diagnostics" style="display:none"></section>
-<section class="panel"><div class="note"><b>V2.5 interface update:</b> The app now opens clean, without automatically loading the sample puzzle. The photo selection buttons are larger and easier to use on phones and tablets.<br><br><b>V2.4 matching milestone:</b> Each detected piece now gets an individual result row showing match status, confidence, feature count, and predicted rotation. This helps us identify exactly which pieces need better matching. <br><br><b> The analyzer now adds multi-scale piece upscaling, rotated feature matching, color/edge similarity, and a fallback matcher for pieces that have too few keypoints for SIFT/ORB. It also reports whether the failure happened during piece detection or image matching. It is still an early CV engine, so overlapping pieces, glare, very low-detail artwork, and extreme perspective can cause misses.</div></section>
+<section class="panel" id="result"><div class="big">Ready to scout</div><div class="hint">Analyze your two photos, then tap a detected piece. v2.7 will also look for pieces whose edges may connect.</div></section><section class="panel" id="diagnostics" style="display:none"></section>
+<section class="panel"><div class="note"><b>V2.7 connection milestone:</b> The analyzer now compares the four edges of detected pieces to find likely tab-to-hole connections. Tap a piece to see its strongest connection candidates. This is an early edge-matching experiment, so candidates are suggestions rather than guaranteed fits.<br><br><b>Earlier matching milestone:</b> Each detected piece now gets an individual result row showing match status, confidence, feature count, and predicted rotation. This helps us identify exactly which pieces need better matching. <br><br><b> The analyzer now adds multi-scale piece upscaling, rotated feature matching, color/edge similarity, and a fallback matcher for pieces that have too few keypoints for SIFT/ORB. It also reports whether the failure happened during piece detection or image matching. It is still an early CV engine, so overlapping pieces, glare, very low-detail artwork, and extreme perspective can cause misses.</div></section>
 </main>
-<footer><div class="version">Piece Scout v2.5</div><div>Build 2.5 • Cleaner startup • Larger photo buttons • Multi-scale matching</div></footer>
+<footer><div class="version">Piece Scout v2.7</div><div>Build 2.7 • Edge connection scouting • Faster analysis</div></footer>
 <canvas id="refCanvas" class="hidden-canvas"></canvas><canvas id="piecesCanvas" class="hidden-canvas"></canvas>
 <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
 <script>
@@ -77,9 +77,25 @@ async function loadAurora(){
 }
 
 function clearPieceSelection(){document.querySelectorAll('.piece-hit').forEach(b=>b.classList.remove('selected'))}
-function selectResult(i){const r=results[i];if(!r)return;clearPieceSelection();r.button.classList.add('selected');if(r.location){target.style.display='block';target.style.left=(r.location.x*100)+'%';target.style.top=(r.location.y*100)+'%';target.style.width=Math.max(5,r.location.w*100)+'%';target.style.height=Math.max(5,r.location.h*100)+'%';}else resetTarget();
+function clearCandidateHighlights(){document.querySelectorAll('.piece-hit').forEach(b=>b.classList.remove('candidate-hit','selected-edge'))}
+function edgeName(n){return ['top','right','bottom','left'][n]||'?'}
+function selectResult(i){
+ const r=results[i];if(!r)return;clearPieceSelection();clearCandidateHighlights();r.button.classList.add('selected');
+ if(r.location){target.style.display='block';target.style.left=(r.location.x*100)+'%';target.style.top=(r.location.y*100)+'%';target.style.width=Math.max(5,r.location.w*100)+'%';target.style.height=Math.max(5,r.location.h*100)+'%';}else resetTarget();
  const rot=r.rotation==null?'Unknown':Math.round(((r.rotation%360)+360)%360)+'°';
- $('result').innerHTML='<div class="big">Piece #'+(i+1)+'</div><div style="margin-top:7px">Estimated location: <b>'+(r.location?('X '+Math.round(r.location.x*100)+'%, Y '+Math.round(r.location.y*100)+'%'):'Not found')+'</b></div><div style="margin-top:7px">Feature confidence: <span class="badge">'+r.confidence+'%</span></div><div style="margin-top:7px">Suggested rotation: <b>'+rot+'</b></div><div style="margin-top:7px">Good feature matches: <b>'+r.goodMatches+'</b></div>'+(r.warning?'<div class="hint" style="margin-top:9px">'+r.warning+'</div>':'');}
+ let html='<div class="big">Piece #'+(i+1)+'</div>';
+ html+='<div style="margin-top:7px">Estimated location: <b>'+(r.location?('X '+Math.round(r.location.x*100)+'%, Y '+Math.round(r.location.y*100)+'%'):'Not found')+'</b></div>';
+ html+='<div style="margin-top:7px">Feature confidence: <span class="badge">'+r.confidence+'%</span></div>';
+ html+='<div style="margin-top:7px">Suggested rotation: <b>'+rot+'</b></div>';
+ html+='<div style="margin-top:7px">Good feature matches: <b>'+r.goodMatches+'</b></div>';
+ if(r.warning)html+='<div class="hint" style="margin-top:9px">'+r.warning+'</div>';
+ html+='<div style="margin-top:14px"><b>Possible connections</b><div class="hint">These are edge-shape + artwork suggestions. Higher scores are better; the pieces are highlighted in purple.</div></div>';
+ if(r.connections&&r.connections.length){
+   html+='<div class="connection-grid">'+r.connections.slice(0,4).map((c,idx)=>'<div class="connection-card"><strong>#'+(c.index+1)+'</strong><span class="edge-pill">'+edgeName(c.edgeA)+' ↔ '+edgeName(c.edgeB)+'</span><div class="connection-score">'+c.score+'% match</div></div>').join('')+'</div>';
+   r.connections.slice(0,4).forEach(c=>{if(results[c.index]&&results[c.index].button)results[c.index].button.classList.add('candidate-hit')});
+ }else html+='<div class="hint" style="margin-top:8px">No strong edge candidates found.</div>';
+ $('result').innerHTML=html;
+}
 function addPieceButton(r,i,totalW,totalH){const b=document.createElement('button');b.type='button';b.className='piece-hit';b.setAttribute('aria-label','Detected puzzle piece '+(i+1));b.style.left=(r.rect.x/totalW*100)+'%';b.style.top=(r.rect.y/totalH*100)+'%';b.style.width=(r.rect.width/totalW*100)+'%';b.style.height=(r.rect.height/totalH*100)+'%';b.addEventListener('click',()=>selectResult(i));b.addEventListener('pointerdown',()=>selectResult(i));r.button=b;layer.appendChild(b)}
 function loadImageFile(file,img){return new Promise((resolve,reject)=>{const u=URL.createObjectURL(file);objectUrls.push(u);img.onload=()=>resolve();img.onerror=reject;img.src=u})}
 function matFromImage(img,canvasId){const c=$(canvasId),ctx=c.getContext('2d');c.width=img.naturalWidth;c.height=img.naturalHeight;ctx.drawImage(img,0,0);return cv.imread(c)}
@@ -92,6 +108,62 @@ function detectPieces(src){
  const minArea=Math.max(180,src.rows*src.cols*.00035),maxArea=src.rows*src.cols*.25,out=[];
  for(let i=0;i<contours.size();i++){const c=contours.get(i),area=cv.contourArea(c);if(area>=minArea&&area<=maxArea){const rect=cv.boundingRect(c),fill=area/(rect.width*rect.height);if(rect.width>=14&&rect.height>=14&&fill>.28)out.push({rect,area,fill})}c.delete()}
  mask.delete();k.delete();contours.delete();hier.delete();out.sort((a,b)=>b.area-a.area);return out.slice(0,200)
+}
+
+function clamp01(v){return Math.max(0,Math.min(1,v))}
+function smoothProfile(a){if(a.length<3)return a.slice();const out=a.slice();for(let i=1;i<a.length-1;i++)out[i]=(a[i-1]+2*a[i]+a[i+1])/4;return out}
+function sampleSide(mask,side,n=48){
+ const w=mask.cols,h=mask.rows,out=[];
+ for(let k=0;k<n;k++){
+   const t=(k+.5)/n;
+   let pos=0,found=false;
+   if(side===0||side===2){const x=Math.min(w-1,Math.max(0,Math.round(t*(w-1)))); if(side===0){for(let y=0;y<h;y++){if(mask.ucharPtr(y,x)[0]>0){pos=-y/(Math.max(1,h-1));found=true;break}}}else{for(let y=h-1;y>=0;y--){if(mask.ucharPtr(y,x)[0]>0){pos=(y-(h-1))/Math.max(1,h-1);found=true;break}}}}
+   else{const y=Math.min(h-1,Math.max(0,Math.round(t*(h-1)))); if(side===3){for(let x=0;x<w;x++){if(mask.ucharPtr(y,x)[0]>0){pos=-x/(Math.max(1,w-1));found=true;break}}}else{for(let x=w-1;x>=0;x--){if(mask.ucharPtr(y,x)[0]>0){pos=(x-(w-1))/Math.max(1,w-1);found=true;break}}}}
+   out.push(found?pos:0);
+ }
+ return smoothProfile(out);
+}
+function edgeType(profile){
+ const mid=profile.slice(7,41);let amp=Math.max(...mid)-Math.min(...mid);let mean=mid.reduce((a,b)=>a+b,0)/Math.max(1,mid.length);if(amp<.035)return 'flat';return mean>.015?'tab':'hole';
+}
+function edgeColorScore(a,b,sideA,sideB){
+ // Compare a narrow color strip near each joining edge. Mean color is deliberately simple for mobile performance.
+ const ma=a.color[sideA],mb=b.color[sideB];const d=Math.sqrt((ma[0]-mb[0])**2+(ma[1]-mb[1])**2+(ma[2]-mb[2])**2);return clamp01(1-d/300);
+}
+function reverseAbsDifference(a,b){let sum=0,n=Math.min(a.length,b.length);for(let i=0;i<n;i++){sum+=Math.abs(a[i]+b[n-1-i]);}return 1-clamp01(sum/n/.22)}
+function sameEdgePenalty(a,b){const ta=edgeType(a),tb=edgeType(b);if(ta==='flat'&&tb==='flat')return .35;if(ta===tb&&ta!=='flat')return .15;return 0}
+function buildPieceEdgeInfo(src,rect){
+ const pad=1,x=Math.max(0,rect.x-pad),y=Math.max(0,rect.y-pad),w=Math.min(src.cols-x,rect.width+pad*2),h=Math.min(src.rows-y,rect.height+pad*2);
+ const roi=src.roi(new cv.Rect(x,y,w,h));const bg=medianBorder(roi);const mask=new cv.Mat(roi.rows,roi.cols,cv.CV_8UC1);const data=roi.data,md=mask.data,thr=32;
+ for(let i=0,j=0;i<data.length;i+=4,j++){const db=data[i]-bg[0],dg=data[i+1]-bg[1],dr=data[i+2]-bg[2];md[j]=(Math.sqrt(db*db+dg*dg+dr*dr)>thr)?255:0}
+ const k=cv.Mat.ones(3,3,cv.CV_8U);cv.morphologyEx(mask,mask,cv.MORPH_CLOSE,k);k.delete();
+ const edges=[];for(let s=0;s<4;s++)edges.push(sampleSide(mask,s));
+ const colors=[];const rgb=cv.mean(roi); // overall color used as a lightweight artwork cue
+ for(let s=0;s<4;s++)colors.push([rgb[0],rgb[1],rgb[2]]);
+ const types=edges.map(edgeType);mask.delete();roi.delete();return {profiles:edges,types,color:colors};
+}
+function connectionScore(a,b,sa,sb){
+ const pa=a.edgeInfo.profiles[sa],pb=b.edgeInfo.profiles[sb];
+ const shape=reverseAbsDifference(pa,pb);const typeA=a.edgeInfo.types[sa],typeB=b.edgeInfo.types[sb];
+ if(typeA==='flat'||typeB==='flat')return null;
+ if(typeA===typeB)return null;
+ const color=edgeColorScore(a.edgeInfo,b.edgeInfo,sa,sb);
+ const penalty=sameEdgePenalty(pa,pb);
+ return clamp01(shape*.72+color*.28-penalty);
+}
+function analyzeConnections(){
+ for(let i=0;i<results.length;i++)results[i].connections=[];
+ for(let i=0;i<results.length;i++){
+   for(let j=i+1;j<results.length;j++){
+     let best=null;
+     for(let sa=0;sa<4;sa++)for(let sb=0;sb<4;sb++){
+       const score=connectionScore(results[i],results[j],sa,sb);if(score==null)continue;
+       if(!best||score>best.score)best={index:j,edgeA:sa,edgeB:sb,score};
+     }
+     if(best){best.score=Math.round(best.score*100);results[i].connections.push(best);results[j].connections.push({index:i,edgeA:best.edgeB,edgeB:best.edgeA,score:best.score});}
+   }
+ }
+ results.forEach(r=>r.connections.sort((a,b)=>b.score-a.score));
 }
 function makeDetector(){if(cv.SIFT_create)return {name:'SIFT',obj:cv.SIFT_create(1400)};return {name:'ORB',obj:new cv.ORB(1800)}}
 function rotateMat(src,deg){if(deg===0)return src.clone();let dst=new cv.Mat();if(deg===90)cv.rotate(src,dst,cv.ROTATE_90_CLOCKWISE);else if(deg===180)cv.rotate(src,dst,cv.ROTATE_180);else cv.rotate(src,dst,cv.ROTATE_90_COUNTERCLOCKWISE);return dst}
@@ -110,76 +182,120 @@ function templateFallback(refGray,roi,refColor,pieceColor,rect){
  if(best.score<.62){best.location=null;best.confidence=0;best.warning='No reliable match; feature and color/template scores were too weak.'}return best
 }
 function refColorMat(ref){let c=new cv.Mat();if(ref.channels()===4)cv.cvtColor(ref,c,cv.COLOR_RGBA2RGB);else ref.copyTo(c);return c}
-function matchPiece(refGray,pieceGray,rect,refColor,pieceColor){
- const pad=Math.max(8,Math.round(Math.min(rect.width,rect.height)*.08));
- const x=Math.max(0,rect.x-pad),y=Math.max(0,rect.y-pad);
- const w=Math.min(pieceGray.cols-x,rect.width+pad*2),h=Math.min(pieceGray.rows-y,rect.height+pad*2);
- const roi=pieceGray.roi(new cv.Rect(x,y,w,h));
- const roiColor=pieceColor.roi(new cv.Rect(x,y,w,h));
- let best={location:null,confidence:0,goodMatches:0,rotation:null,warning:'No reliable visual match was found.'};
- const detector=makeDetector();
- let refKey=null,refDesc=null;
- try{
-   refKey=new cv.KeyPointVector(); refDesc=new cv.Mat();
-   detector.obj.detectAndCompute(refGray,new cv.Mat(),refKey,refDesc,false);
-   for(const deg of [0,90,180,270]){
-     const raw=rotateMat(roi,deg);
-     const rawColor=rotateMat(roiColor,deg);
-     const test=upscaleMat(raw,3);
-     const kpP=new cv.KeyPointVector();
-     const dP=new cv.Mat();
-     detector.obj.detectAndCompute(test,new cv.Mat(),kpP,dP,false);
-     let featureCandidate=null;
-     if(!dP.empty() && kpP.size()>=3 && !refDesc.empty() && refKey.size()>=4){
-       const norm=detector.name==='SIFT'?cv.NORM_L2:cv.NORM_HAMMING;
-       const bf=new cv.BFMatcher(norm,false);
-       const knn=new cv.DMatchVectorVector();
-       bf.knnMatch(dP,refDesc,knn,2);
-       const good=[];
-       for(let i=0;i<knn.size();i++){
-         const pair=knn.get(i);
-         if(pair.size()>=2){const a=pair.get(0),b=pair.get(1);if(a.distance<.78*b.distance)good.push(a);}
-         pair.delete();
-       }
-       if(good.length>=3){
-         const srcPts=new cv.Mat(good.length,1,cv.CV_32FC2);
-         const dstPts=new cv.Mat(good.length,1,cv.CV_32FC2);
-         for(let j=0;j<good.length;j++){
-           const ps=kpP.get(good[j].queryIdx).pt, pt=refKey.get(good[j].trainIdx).pt;
-           srcPts.data32F[j*2]=ps.x;srcPts.data32F[j*2+1]=ps.y;
-           dstPts.data32F[j*2]=pt.x;dstPts.data32F[j*2+1]=pt.y;
-         }
-         const mask=new cv.Mat();
-         const H=cv.findHomography(srcPts,dstPts,cv.RANSAC,8,mask);
-         if(!H.empty()){
-           let inliers=0;for(let z=0;z<mask.rows*mask.cols;z++)if(mask.data[z])inliers++;
-           if(inliers>=3){
-             const center=new cv.Mat(1,1,cv.CV_32FC2);center.data32F[0]=test.cols/2;center.data32F[1]=test.rows/2;
-             const mapped=new cv.Mat();cv.perspectiveTransform(center,mapped,H);
-             const px=mapped.data32F[0],py=mapped.data32F[1];
-             const score=inliers*2+good.length*.35;
-             featureCandidate={score,location:{x:Math.max(0,Math.min(1,px/refGray.cols)),y:Math.max(0,Math.min(1,py/refGray.rows)),w:Math.min(.18,rect.width/refGray.cols*1.5),h:Math.min(.18,rect.height/refGray.rows*1.5)},confidence:Math.min(99,Math.round(42+Math.min(57,(inliers/Math.max(1,good.length))*57))),goodMatches:good.length,rotation:((deg+Math.atan2(H.doubleAt(1,0),H.doubleAt(0,0))*180/Math.PI)%360+360)%360,warning:inliers<5?'Tentative feature match — verify highlighted location.':''};
-             center.delete();mapped.delete();
-           }
-         }
-         mask.delete();H.delete();srcPts.delete();dstPts.delete();
-       }
-       knn.delete();bf.delete();
-     }
-     if(featureCandidate && (!best._score || featureCandidate.score>best._score)){best={...featureCandidate,_score:featureCandidate.score};}
-     raw.delete();rawColor.delete();test.delete();kpP.delete();dP.delete();
-   }
-   if(!best.location){
-     const fb=templateFallback(refGray,roi,refColor,roiColor,rect);
-     if(fb.location)best={...fb,_fallback:true};
-   }
- }catch(e){best.warning='Matching error: '+e.message;}
- if(best._score!==undefined)delete best._score;if(best._fallback)delete best._fallback;
- if(refKey)refKey.delete();if(refDesc)refDesc.delete();detector.obj.delete();roi.delete();roiColor.delete();
- return best;
+function prepareReference(refGray){
+  const maxDim=1400;
+  let scaled=refGray;
+  let scale=1;
+  if(Math.max(refGray.cols,refGray.rows)>maxDim){
+    scale=maxDim/Math.max(refGray.cols,refGray.rows);
+    scaled=new cv.Mat();
+    cv.resize(refGray,scaled,new cv.Size(Math.round(refGray.cols*scale),Math.round(refGray.rows*scale)),0,0,cv.INTER_AREA);
+  } else scaled=refGray.clone();
+  const detector=makeDetector();
+  const key=new cv.KeyPointVector(), desc=new cv.Mat();
+  const empty=new cv.Mat();
+  detector.obj.detectAndCompute(scaled,empty,key,desc,false);
+  empty.delete(); detector.obj.delete();
+  return {gray:scaled,key,desc,scale};
 }
-async function analyze(){if(!cvReady){status('Computer-vision engine is still loading. Please wait a moment and try again.');return}if(!refImg.src||!piecesImg.src){status('Please load both images first.');return}const btn=$('analyzeBtn');btn.disabled=true;mode='real';resetTarget();clearPieceSelection();layer.innerHTML='';results=[];try{status('<b>1/3</b> Reading your images…');await new Promise(r=>setTimeout(r,20));const ref=matFromImage(refImg,'refCanvas'),pieces=matFromImage(piecesImg,'piecesCanvas');status('<b>2/3</b> Detecting individual pieces…');await new Promise(r=>setTimeout(r,20));const detected=detectPieces(pieces);if(!detected.length){status('I could not isolate any pieces. Try a photo with the pieces separated on a plain, contrasting table.');ref.delete();pieces.delete();btn.disabled=false;return}status('<b>3/3</b> Matching '+detected.length+' detected piece'+(detected.length===1?'':'s')+' against the reference…');await new Promise(r=>setTimeout(r,20));let refGray=new cv.Mat();cv.cvtColor(ref,refGray,cv.COLOR_RGBA2GRAY);let pieceGray=new cv.Mat();cv.cvtColor(pieces,pieceGray,cv.COLOR_RGBA2GRAY);let refColor=refColorMat(ref),pieceColor=refColorMat(pieces);for(let i=0;i<detected.length;i++){results.push({...detected[i],...matchPiece(refGray,pieceGray,detected[i].rect,refColor,pieceColor)});addPieceButton(results[i],i,pieces.cols,pieces.rows);if(i%3===0)await new Promise(r=>setTimeout(r,0))}const found=results.filter(r=>r.location).length;status('<b>Analysis complete.</b> Detected '+results.length+' pieces; estimated reference locations for '+found+'. '+(found?'Tap a blue box around a piece.':'No visual matches were reliable enough. Try a clearer reference image or a plain contrasting background.'));$('result').innerHTML='<div class="big">'+found+' of '+results.length+' pieces matched</div><div class="hint">Tap any detected piece in the Loose Pieces photo to see its predicted location on the completed puzzle.</div>';
-const dg=$('diagnostics');dg.style.display='block';dg.innerHTML='<h2>Piece-by-piece diagnostics</h2><div class="diag-list">'+results.map((r,i)=>{const ok=!!r.location;const rot=r.rotation==null?'—':Math.round(((r.rotation%360)+360)%360)+'°';return '<button class="diag-row '+(ok?'ok':'miss')+'" type="button" onclick="selectResult('+i+')"><span class="diag-num">#'+(i+1)+'</span><span class="diag-status">'+(ok?'MATCHED':'NO MATCH')+'</span><span>'+r.confidence+'% confidence</span><span>'+r.goodMatches+' features</span><span>rot '+rot+'</span></button>'}).join('')+'</div>';refColor.delete();pieceColor.delete();refGray.delete();pieceGray.delete();ref.delete();pieces.delete()}catch(e){console.error(e);status('<b>Analysis error.</b> '+(e.message||e));}finally{btn.disabled=false}}
+function matchPiece(refInfo,pieceGray,rect){
+  const maxPiece=220;
+  const x=Math.max(0,rect.x),y=Math.max(0,rect.y);
+  const w=Math.min(pieceGray.cols-x,rect.width),h=Math.min(pieceGray.rows-y,rect.height);
+  let roi=pieceGray.roi(new cv.Rect(x,y,w,h));
+  let work=roi;
+  let pieceScale=1;
+  if(Math.max(roi.cols,roi.rows)>maxPiece){
+    pieceScale=maxPiece/Math.max(roi.cols,roi.rows);
+    work=new cv.Mat();
+    cv.resize(roi,work,new cv.Size(Math.round(roi.cols*pieceScale),Math.round(roi.rows*pieceScale)),0,0,cv.INTER_AREA);
+  } else work=roi.clone();
+  let best={location:null,confidence:0,goodMatches:0,rotation:null,warning:'No reliable visual match was found.'};
+  const detector=makeDetector();
+  try{
+    for(const deg of [0,90,180,270]){
+      const raw=rotateMat(work,deg);
+      const kpP=new cv.KeyPointVector(),dP=new cv.Mat(),empty=new cv.Mat();
+      detector.obj.detectAndCompute(raw,empty,kpP,dP,false); empty.delete();
+      if(!dP.empty() && kpP.size()>=3 && !refInfo.desc.empty() && refInfo.key.size()>=4){
+        const norm=detector.name==='SIFT'?cv.NORM_L2:cv.NORM_HAMMING;
+        const bf=new cv.BFMatcher(norm,false),knn=new cv.DMatchVectorVector();
+        bf.knnMatch(dP,refInfo.desc,knn,2);
+        const good=[];
+        for(let i=0;i<knn.size();i++){
+          const pair=knn.get(i);
+          if(pair.size()>=2){const a=pair.get(0),b=pair.get(1);if(a.distance<0.78*b.distance)good.push(a);}
+          pair.delete();
+        }
+        if(good.length>=3){
+          const srcPts=new cv.Mat(good.length,1,cv.CV_32FC2),dstPts=new cv.Mat(good.length,1,cv.CV_32FC2);
+          for(let j=0;j<good.length;j++){
+            const ps=kpP.get(good[j].queryIdx).pt,pt=refInfo.key.get(good[j].trainIdx).pt;
+            srcPts.data32F[j*2]=ps.x;srcPts.data32F[j*2+1]=ps.y;
+            dstPts.data32F[j*2]=pt.x;dstPts.data32F[j*2+1]=pt.y;
+          }
+          const mask=new cv.Mat(),H=cv.findHomography(srcPts,dstPts,cv.RANSAC,8,mask);
+          if(!H.empty()){
+            let inliers=0;for(let z=0;z<mask.rows*mask.cols;z++)if(mask.data[z])inliers++;
+            if(inliers>=3){
+              const center=new cv.Mat(1,1,cv.CV_32FC2);center.data32F[0]=raw.cols/2;center.data32F[1]=raw.rows/2;
+              const mapped=new cv.Mat();cv.perspectiveTransform(center,mapped,H);
+              const px=mapped.data32F[0]/refInfo.scale,py=mapped.data32F[1]/refInfo.scale;
+              const score=inliers*2+good.length*.35;
+              const conf=Math.min(99,Math.round(42+Math.min(57,(inliers/Math.max(1,good.length))*57)));
+              const cand={score,location:{x:Math.max(0,Math.min(1,px/refInfo.originalCols)),y:Math.max(0,Math.min(1,py/refInfo.originalRows)),w:Math.min(.18,rect.width/refInfo.originalCols*1.5),h:Math.min(.18,rect.height/refInfo.originalRows*1.5)},confidence:conf,goodMatches:good.length,rotation:((deg+Math.atan2(H.doubleAt(1,0),H.doubleAt(0,0))*180/Math.PI)%360+360)%360,warning:inliers<5?'Tentative feature match — verify highlighted location.':''};
+              if(!best._score || cand.score>best._score)best={...cand,_score:cand.score};
+              center.delete();mapped.delete();
+            }
+          }
+          mask.delete();H.delete();srcPts.delete();dstPts.delete();
+        }
+        knn.delete();bf.delete();
+      }
+      kpP.delete();dP.delete();raw.delete();
+      if(deg!==270) awaitTick();
+    }
+  }catch(e){best.warning='Matching error: '+e.message;}
+  detector.obj.delete();
+  if(work!==roi)work.delete();roi.delete();
+  if(best._score!==undefined)delete best._score;
+  return best;
+}
+function awaitTick(){/* synchronous yield point marker; analysis loop yields between pieces */}
+async function analyze(){
+  if(!cvReady){status('Computer-vision engine is still loading. Please wait a moment and try again.');return}
+  if(!refImg.src||!piecesImg.src){status('Please load both images first.');return}
+  const btn=$('analyzeBtn');btn.disabled=true;mode='real';resetTarget();clearPieceSelection();layer.innerHTML='';results=[];
+  try{
+    status('<b>1/4</b> Reading your images…');await new Promise(r=>setTimeout(r,20));
+    const ref=matFromImage(refImg,'refCanvas'),pieces=matFromImage(piecesImg,'piecesCanvas');
+    status('<b>2/4</b> Detecting individual pieces…');await new Promise(r=>setTimeout(r,20));
+    const detected=detectPieces(pieces).slice(0,80);
+    status('<b>2/4</b> Describing piece edges…');await new Promise(r=>setTimeout(r,20));
+    detected.forEach((d,idx)=>{d.edgeInfo=buildPieceEdgeInfo(pieces,d.rect);});
+    if(!detected.length){status('I could not isolate any pieces. Try a photo with the pieces separated on a plain, contrasting table.');ref.delete();pieces.delete();btn.disabled=false;return}
+    status('<b>3/4</b> Preparing the reference image…');await new Promise(r=>setTimeout(r,20));
+    let refGray=new cv.Mat();cv.cvtColor(ref,refGray,cv.COLOR_RGBA2GRAY);
+    const refInfo=prepareReference(refGray);refInfo.originalCols=refGray.cols;refInfo.originalRows=refGray.rows;
+    status('<b>4/4</b> Matching 0 of '+detected.length+' pieces…');await new Promise(r=>setTimeout(r,20));
+    for(let i=0;i<detected.length;i++){
+      const r={...detected[i],...matchPiece(refInfo,cv.cvtColor?pieceGrayMat(pieces):null,detected[i].rect)};
+      results.push(r);addPieceButton(r,i,pieces.cols,pieces.rows);
+      status('<b>4/4</b> Matching '+(i+1)+' of '+detected.length+' pieces…');
+      await new Promise(resolve=>setTimeout(resolve,0));
+    }
+    const found=results.filter(r=>r.location).length;
+    status('<b>Connection scout</b> Comparing piece edges…');await new Promise(r=>setTimeout(r,20));
+    analyzeConnections();
+    status('<b>Analysis complete.</b> Detected '+results.length+' pieces; estimated reference locations for '+found+'. Tap a piece to see possible connections.');
+    $('result').innerHTML='<div class="big">'+found+' of '+results.length+' pieces matched</div><div class="hint">Tap any detected piece in the Loose Pieces photo to see its predicted location on the completed puzzle.</div>';
+    const dg=$('diagnostics');dg.style.display='block';dg.innerHTML='<h2>Piece-by-piece diagnostics</h2><div class="diag-list">'+results.map((r,i)=>{const ok=!!r.location;const rot=r.rotation==null?'—':Math.round(((r.rotation%360)+360)%360)+'°';return '<button class="diag-row '+(ok?'ok':'miss')+'" type="button" onclick="selectResult('+i+')"><span class="diag-num">#'+(i+1)+'</span><span class="diag-status">'+(ok?'MATCHED':'NO MATCH')+'</span><span>'+r.confidence+'% confidence</span><span>'+r.goodMatches+' features</span><span>rot '+rot+'</span></button>'}).join('')+'</div>';
+    refInfo.key.delete();refInfo.desc.delete();refInfo.gray.delete();refGray.delete();ref.delete();if(pieceGrayMatCache){pieceGrayMatCache.delete();pieceGrayMatCache=null;}pieces.delete();
+  }catch(e){console.error(e);status('<b>Analysis error.</b> '+(e.message||e));}
+  finally{btn.disabled=false}
+}
+let pieceGrayMatCache=null;
+function pieceGrayMat(pieces){if(!pieceGrayMatCache){pieceGrayMatCache=new cv.Mat();cv.cvtColor(pieces,pieceGrayMatCache,cv.COLOR_RGBA2GRAY)}return pieceGrayMatCache}
 $('analyzeBtn').addEventListener('click',analyze);
 $('auroraBtn').addEventListener('click',loadAurora);
 $('sampleBtn').addEventListener('click',()=>{setImage(refImg,$('refEmpty'),'sample_reference.png','Completed puzzle reference');setImage(piecesImg,$('piecesEmpty'),'sample_pieces.png','Loose puzzle pieces');mode='sample';$('refFileName').textContent='Sample reference';$('piecesFileName').textContent='Sample pieces';resetTarget();layer.innerHTML='';results=[];clearPieceSelection();for(let i=0;i<80;i++){const r=Math.floor(i/10),c=i%10;results.push({rect:{x:c*10,y:r*12.5,width:10,height:12.5},location:{x:c*.1,y:r*.125,w:.1,h:.125},confidence:96,goodMatches:20,rotation:0});addPieceButton(results[i],i,100,100)}status('<b>Sample loaded.</b> Tap any piece. This sample retains its known mapping for interface testing.');$('result').innerHTML='<div class="big">Ready to scout</div><div class="hint">Tap any sample piece above.</div>'});
