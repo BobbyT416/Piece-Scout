@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#182b3a">
-<title>Piece Scout v2.7.6</title>
+<title>Piece Scout v2.7.7</title>
 <style>
 :root{--bg:#f4f1eb;--card:#fff;--ink:#182b3a;--muted:#697680;--accent:#1769aa;--line:#dedbd5;--good:#21683f;--warn:#6b5420}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
@@ -39,9 +39,9 @@ footer{text-align:center;color:#7a858c;font-size:13px;padding:26px 12px 32px}.ve
 <section class="card"><h2>Loose pieces</h2><div class="viewer" id="piecesViewer"><div id="piecesEmpty" class="empty-view">Your loose-pieces photo will appear here.</div><img id="piecesImg" src="" alt="Loose puzzle pieces" style="display:none"><div id="pieceLayer" class="piece-layer"></div></div><div class="legend"><span><i class="dot blue"></i>Detected piece</span></div><div class="hint">The analyzer attempts to separate pieces from the table, then uses image features to estimate each piece's location in the reference.</div></section>
 </div>
 <section class="panel" id="result"><div class="big">Ready to scout</div><div class="hint">Analyze your two photos, then tap a detected piece. v2.7 will also look for pieces whose edges may connect.</div></section><section class="panel" id="diagnostics" style="display:none"></section>
-<section class="panel"><div class="note"><b>V2.7.6 matching milestone:</b> The analyzer now compares the four edges of detected pieces to find likely tab-to-hole connections. Tap a piece to see its strongest connection candidates. This is an early edge-matching experiment, so candidates are suggestions rather than guaranteed fits.<br><br><b>Earlier matching milestone:</b> Each detected piece now gets an individual result row showing match status, confidence, feature count, and predicted rotation. This helps us identify exactly which pieces need better matching. <br><br><b> The analyzer now requires stronger geometric evidence before placing a piece. Weak 3-point/low-feature guesses are rejected instead of being shown as high-confidence locations. It is still an early CV engine, so overlapping pieces, glare, very low-detail artwork, and extreme perspective can cause misses.</div></section>
+<section class="panel"><div class="note"><b>V2.7.7 matching milestone:</b> The analyzer now compares the four edges of detected pieces to find likely tab-to-hole connections. Tap a piece to see its strongest connection candidates. This is an early edge-matching experiment, so candidates are suggestions rather than guaranteed fits.<br><br><b>Earlier matching milestone:</b> Each detected piece now gets an individual result row showing match status, confidence, feature count, and predicted rotation. This helps us identify exactly which pieces need better matching. <br><br><b> The analyzer now requires stronger geometric evidence before placing a piece. Weak 3-point/low-feature guesses are rejected instead of being shown as high-confidence locations. It is still an early CV engine, so overlapping pieces, glare, very low-detail artwork, and extreme perspective can cause misses.</div></section>
 </main>
-<footer><div class="version">Piece Scout v2.7.6</div><div>Build 2.7.4 • Verified feature location matching</div></footer>
+<footer><div class="version">Piece Scout v2.7.7</div><div>Build 2.7.5 • Geometry + artwork location matching</div></footer>
 <canvas id="refCanvas" class="hidden-canvas"></canvas><canvas id="piecesCanvas" class="hidden-canvas"></canvas>
 <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
 <script>
@@ -183,6 +183,26 @@ function projectedBox(H,w,h,scale){
   const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
   const cx=(minX+maxX)/2,cy=(minY+maxY)/2;return {minX,maxX,minY,maxY,cx,cy,w:Math.max(1,maxX-minX),h:Math.max(1,maxY-minY)};
 }
+function artworkAgreement(refGray,raw,H){
+  // Compare the central artwork of the rotated piece with the pixels at the projected location.
+  // The center is used instead of the tabs/holes so shape differences do not dominate.
+  let srcMask=null,warped=null,wMask=null;
+  try{
+    const w=raw.cols,h=raw.rows,ix=Math.round(w*.15),iy=Math.round(h*.15),iw=Math.max(8,Math.round(w*.70)),ih=Math.max(8,Math.round(h*.70));
+    srcMask=new cv.Mat(h,w,cv.CV_8UC1,new cv.Scalar(0));
+    cv.rectangle(srcMask,new cv.Point(ix,iy),new cv.Point(ix+iw-1,iy+ih-1),new cv.Scalar(255),-1);
+    warped=new cv.Mat();wMask=new cv.Mat();
+    cv.warpPerspective(raw,warped,H,new cv.Size(refGray.cols,refGray.rows),cv.INTER_LINEAR,cv.BORDER_CONSTANT,new cv.Scalar(0));
+    cv.warpPerspective(srcMask,wMask,H,new cv.Size(refGray.cols,refGray.rows),cv.INTER_NEAREST,cv.BORDER_CONSTANT,new cv.Scalar(0));
+    const a=warped.data,b=refGray.data,m=wMask.data;let n=0,sa=0,sb=0;
+    for(let i=0;i<m.length;i++)if(m[i]>0){const x=a[i],y=b[i];if(x>2||y>2){sa+=x;sb+=y;n++;}}
+    if(n<120)return {corr:-1,n};
+    sa/=n;sb/=n;let ab=0,aa=0,bb=0;
+    for(let i=0;i<m.length;i++)if(m[i]>0){const x=a[i],y=b[i];if(x>2||y>2){const dx=x-sa,dy=y-sb;ab+=dx*dy;aa+=dx*dx;bb+=dy*dy;}}
+    return {corr:ab/Math.sqrt(Math.max(1,aa*bb)),n};
+  }catch(e){return {corr:-1,n:0};}
+  finally{[srcMask,warped,wMask].forEach(m=>{try{m&&m.delete()}catch(_){}});}
+}
 function spatialSpread(points){if(points.length<4)return 0;let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;points.forEach(p=>{minX=Math.min(minX,p[0]);maxX=Math.max(maxX,p[0]);minY=Math.min(minY,p[1]);maxY=Math.max(maxY,p[1])});return Math.min(1,Math.sqrt((maxX-minX)*(maxY-minY))/120);}
 async function templateLocate(refGray,pieceGray,rect){
   // A second, conservative matcher for pieces with too little feature texture.
@@ -251,7 +271,7 @@ async function matchPiece(refInfo,pieceGray,pieceColor,rect){
   const maxPiece=320,x=Math.max(0,rect.x),y=Math.max(0,rect.y),w=Math.min(pieceGray.cols-x,rect.width),h=Math.min(pieceGray.rows-y,rect.height);
   let roi=pieceGray.roi(new cv.Rect(x,y,w,h)),work=roi.clone();
   if(Math.max(roi.cols,roi.rows)>maxPiece){work.delete();work=new cv.Mat();cv.resize(roi,work,new cv.Size(Math.round(roi.cols*maxPiece/Math.max(roi.cols,roi.rows)),Math.round(roi.rows*maxPiece/Math.max(roi.cols,roi.rows))),0,0,cv.INTER_AREA)}
-  let best=null;const detector=makeDetector();
+  let best=null;let featureCandidates=[];const detector=makeDetector();
   try{
     for(const deg of [0,90,180,270]){
       const raw=rotateMat(work,deg),kpP=new cv.KeyPointVector(),dP=new cv.Mat(),empty=new cv.Mat();detector.obj.detectAndCompute(raw,empty,kpP,dP,false);empty.delete();
@@ -273,10 +293,14 @@ async function matchPiece(refInfo,pieceGray,pieceColor,rect){
                 // the time.  Keep the strong RANSAC requirements, but don't let that broken
                 // secondary check discard otherwise valid matches.
                 const quality=Math.min(1,.58*ratio+.27*Math.min(1,inliers/12)+.15*spread);
-                const conf=Math.round(58+quality*34);
+                const artwork=artworkAgreement(refInfo.gray,raw,H);
+                const artScore=artwork.corr>0?Math.max(0,Math.min(1,(artwork.corr-.15)/.75)):0;
+                // Geometry remains dominant; artwork breaks ties between visually repetitive areas.
+                const combined=quality*.78+artScore*.22;
+                const conf=Math.round(55+combined*39);
                 const rot=((deg+Math.atan2(H.doubleAt(1,0),H.doubleAt(0,0))*180/Math.PI)%360+360)%360;
-                const cand={location:{x:box.cx/refInfo.originalCols,y:box.cy/refInfo.originalRows,w:box.w/refInfo.originalCols,h:box.h/refInfo.originalRows},confidence:conf,goodMatches:good.length,inliers,rotation:rot,method:'FEATURE',warning:conf<78?'Feature match — verify the highlighted location.':'',verification:null,_score:quality+.05};
-                if(!best||cand._score>best._score)best=cand
+                const cand={location:{x:box.cx/refInfo.originalCols,y:box.cy/refInfo.originalRows,w:box.w/refInfo.originalCols,h:box.h/refInfo.originalRows},confidence:conf,goodMatches:good.length,inliers,rotation:rot,method:'FEATURE',warning:conf<76?'Feature match — verify the highlighted location.':'',verification:{correlation:artwork.corr<0?'—':Math.round(artwork.corr*100)+'%',n:artwork.n},_score:combined};
+                featureCandidates.push(cand);
               }
             }
           }mask.delete();H.delete();srcPts.delete();dstPts.delete();
@@ -287,7 +311,7 @@ async function matchPiece(refInfo,pieceGray,pieceColor,rect){
     }
   }catch(e){}
   detector.obj.delete();work.delete();roi.delete();
-  if(best){delete best._score;return best}
+  if(featureCandidates.length){featureCandidates.sort((a,b)=>b._score-a._score);best=featureCandidates[0];delete best._score;return best}
   const fallback=await templateLocate(refInfo.gray,pieceGray,rect);
   if(fallback){delete fallback._score;return fallback}
   return {location:null,confidence:0,goodMatches:0,inliers:0,rotation:null,method:'NONE',warning:'No reliable match. The app did not place this piece from weak evidence.'};
